@@ -101,13 +101,16 @@ export default function MasterEventDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href={`/master-events/${id}/edit`}>
+            <Button variant="default" size="sm"><Pencil className="h-4 w-4 mr-1" />Edit</Button>
+          </Link>
           {editing ? (
             <>
               <Button variant="outline" size="sm" onClick={() => setEditing(false)}><X className="h-4 w-4 mr-1" />Cancel</Button>
               <Button size="sm" onClick={() => updateMutation.mutate(form)}><Save className="h-4 w-4 mr-1" />Save</Button>
             </>
           ) : (
-            <Button variant="outline" size="sm" onClick={startEdit}><Pencil className="h-4 w-4 mr-1" />Edit</Button>
+            <Button variant="outline" size="sm" onClick={startEdit}><Pencil className="h-4 w-4 mr-1" />Quick Edit</Button>
           )}
         </div>
       </div>

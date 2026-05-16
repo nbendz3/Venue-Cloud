@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStatusColor } from "./EventsList";
 import { EventMoreActions } from "@/components/EventMoreActions";
@@ -162,60 +162,98 @@ export default function EventDetail() {
 
             {/* Section 2: Functions */}
             <div id="section-2" className="scroll-mt-6">
-              <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Functions</h2>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                <h2 className="text-lg font-semibold">Functions</h2>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" asChild>
+                    <Link href={`/events/${eventId}/functions/new`}>
+                      <TrendingUp className="w-3.5 h-3.5 mr-1" /> New Function
+                    </Link>
+                  </Button>
+                  <Button size="sm" variant="outline">Edit Functions</Button>
+                  <Button size="sm" variant="outline">Mass Edit Selected</Button>
+                  <Button size="sm" variant="outline">Copy Selected</Button>
+                </div>
+              </div>
               <Card>
                 <CardContent className="p-0">
                   {functions && functions.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Function</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Time</TableHead>
-                          <TableHead>Location</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Attendance</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {functions.map((fn: any) => (
-                          <TableRow key={fn.id}>
-                            <TableCell className="font-medium">
-                              {fn.functionNumber || `#${fn.id}`}
-                            </TableCell>
-                            <TableCell>{fn.functionType || '—'}</TableCell>
-                            <TableCell className="text-sm">{fn.functionDate || '—'}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {fn.startTime && fn.endTime ? `${fn.startTime} – ${fn.endTime}` : fn.startTime || '—'}
-                            </TableCell>
-                            <TableCell className="text-sm">{fn.location || '—'}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">{fn.functionStatus || 'Active'}</Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">{fn.expectedAttendance || '—'}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-end gap-1">
-                                <Button size="sm" variant="ghost" asChild title="BEO / Services">
-                                  <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
-                                    <Utensils className="w-3.5 h-3.5" />
-                                  </Link>
-                                </Button>
-                                <Button size="sm" variant="ghost" asChild title="Financials">
-                                  <Link href={`/events/${eventId}/functions/${fn.id}/financials`}>
-                                    <DollarSign className="w-3.5 h-3.5" />
-                                  </Link>
-                                </Button>
-                              </div>
-                            </TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="text-xs">
+                            <TableHead className="w-8"></TableHead>
+                            <TableHead className="w-20">Actions</TableHead>
+                            <TableHead>Start Date</TableHead>
+                            <TableHead>Start Time</TableHead>
+                            <TableHead>End Time</TableHead>
+                            <TableHead>Function Type</TableHead>
+                            <TableHead>Function Name</TableHead>
+                            <TableHead>Function #</TableHead>
+                            <TableHead>Location</TableHead>
+                            <TableHead>Attendance</TableHead>
+                            <TableHead>Room Rental</TableHead>
+                            <TableHead>Has Services</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {functions.map((fn: any) => (
+                            <TableRow key={fn.id} className="text-sm">
+                              <TableCell>
+                                <input type="checkbox" className="rounded" />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-0.5">
+                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Edit">
+                                    <Link href={`/events/${eventId}/functions/${fn.id}/edit`}>
+                                      <Edit className="w-3 h-3" />
+                                    </Link>
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="BEO">
+                                    <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
+                                      <Utensils className="w-3 h-3" />
+                                    </Link>
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Financials">
+                                    <Link href={`/events/${eventId}/functions/${fn.id}/financials`}>
+                                      <DollarSign className="w-3 h-3" />
+                                    </Link>
+                                  </Button>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline font-medium">
+                                  {fn.functionDate || '—'}
+                                </Link>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{fn.startTime || '—'}</TableCell>
+                              <TableCell className="text-muted-foreground">{fn.endTime || '—'}</TableCell>
+                              <TableCell>
+                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline">
+                                  {fn.functionType || '—'}
+                                </Link>
+                              </TableCell>
+                              <TableCell>{fn.functionName || fn.functionType || '—'}</TableCell>
+                              <TableCell className="font-mono text-xs">{fn.functionNumber || `#${fn.id}`}</TableCell>
+                              <TableCell>{fn.location || '—'}</TableCell>
+                              <TableCell>{fn.estimatedAttendance || fn.expectedAttendance || '—'}</TableCell>
+                              <TableCell>{fn.roomRental ? `$${parseFloat(fn.roomRental).toLocaleString()}` : '—'}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={`text-xs ${fn.hasServices ? 'text-green-700 border-green-300' : ''}`}>
+                                  {fn.hasServices ? 'Yes' : 'No'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
                     <div className="p-8 text-center text-muted-foreground text-sm">
-                      No functions added to this event yet.
+                      No functions added yet.{' '}
+                      <Link href={`/events/${eventId}/functions/new`} className="text-primary hover:underline">
+                        Add a function
+                      </Link>
                     </div>
                   )}
                 </CardContent>

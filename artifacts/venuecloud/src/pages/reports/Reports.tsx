@@ -159,9 +159,11 @@ export default function ReportsPage() {
           <Link href="/reports/scheduled-jobs">
             <Button variant="outline"><BarChart2 className="h-4 w-4 mr-2" />View Scheduled Report Jobs</Button>
           </Link>
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-2" />New Report
-          </Button>
+          <Link href="/reports/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />New Report
+            </Button>
+          </Link>
         </div>
       </div>
 

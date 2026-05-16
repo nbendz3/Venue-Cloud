@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   useGetEvent,
   useGetFunction,
+  useListEventFunctions,
   useGetFunctionMenus,
   useGetMenuTemplates,
   useCreateFunctionMenu,
@@ -64,6 +65,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 const MENU_CATEGORIES = [
   "Show All",
@@ -753,11 +755,13 @@ export default function FunctionServices() {
   const eventId = Number(params.id);
   const functionId = Number(params.functionId);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [, navigate] = useLocation();
 
   const { data: event } = useGetEvent(eventId, { query: { enabled: !!eventId } as any });
   const { data: fn, isLoading: fnLoading } = useGetFunction(functionId, {
     query: { enabled: !!functionId } as any,
   });
+  const { data: functions } = useListEventFunctions(eventId, { query: { enabled: !!eventId } as any });
   const { data: menus, isLoading: menusLoading } = useGetFunctionMenus(functionId, {
     query: { enabled: !!functionId } as any,
   });
@@ -808,21 +812,59 @@ export default function FunctionServices() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b bg-card flex items-center justify-between px-6 flex-shrink-0">
+        {/* Orange accent sub-header with function picker */}
+        <div className="border-b-2 border-orange-400 bg-orange-50 px-6 py-2 flex items-center gap-3 flex-shrink-0">
+          <span className="text-xs font-semibold text-orange-700 whitespace-nowrap">Show Details for Function:</span>
+          <Select
+            value={String(functionId)}
+            onValueChange={(v) => navigate(`/events/${eventId}/functions/${v}/services`)}
+          >
+            <SelectTrigger className="h-7 text-xs border-orange-300 bg-white max-w-lg">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(functions ?? []).map((f: any) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).location ?? "TBD"}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <header className="h-14 border-b bg-card flex items-center justify-between px-6 flex-shrink-0">
           <div>
-            <h1 className="font-bold text-lg">Function Services</h1>
+            <h1 className="font-bold text-base">Function Services — {fn?.functionType}</h1>
             <div className="text-xs text-muted-foreground">
-              {event?.eventName} → {fn?.functionType} · {fn?.functionDate}
-              {fn?.functionNumber ? ` · ${fn.functionNumber}` : ""}
+              {event?.eventName} · {fn?.functionDate}
+              {(fn as any)?.functionNumber ? ` · ${(fn as any).functionNumber}` : ""}
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" asChild>
-              <Link href={`/events/${eventId}/functions/${functionId}/financials`}>View Financials</Link>
+              <Link href={`/events/${eventId}/functions/${functionId}`}>View Details</Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/events/${eventId}/functions/${functionId}/financials`}>Financials</Link>
             </Button>
             <Button size="sm" onClick={() => setAddMenuOpen(true)}>
               <Plus className="w-4 h-4 mr-1" /> Add Menu
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline"><MoreHorizontal className="w-4 h-4" /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>Reorder Menus</DropdownMenuItem>
+                <DropdownMenuItem>Copy Services from Another Function</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`/events/${eventId}/functions/${functionId}/financials`}>View Financial Details</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`/events/${eventId}/functions/${functionId}`}>View Function Details</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem>View Daily Menu Mix</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 

@@ -14,6 +14,9 @@ import EventEdit from "@/pages/events/EventEdit";
 import EventFinancials from "@/pages/events/EventFinancials";
 import FunctionServices from "@/pages/events/FunctionServices";
 import FunctionFinancials from "@/pages/events/FunctionFinancials";
+import FunctionDetail from "@/pages/events/FunctionDetail";
+import FunctionEdit from "@/pages/events/FunctionEdit";
+import FunctionMenuEdit from "@/pages/events/FunctionMenuEdit";
 
 import LeadsList from "@/pages/leads/LeadsList";
 import LeadDetail from "@/pages/leads/LeadDetail";
@@ -38,9 +41,11 @@ import Reports from "@/pages/reports/Reports";
 import ReportEdit from "@/pages/ReportEdit";
 import ReportRun from "@/pages/ReportRun";
 import ReportScheduledJobs from "@/pages/reports/ReportScheduledJobs";
+import ReportNew from "@/pages/reports/ReportNew";
 
 import MasterEvents from "@/pages/MasterEvents";
 import MasterEventDetail from "@/pages/MasterEventDetail";
+import MasterEventEdit from "@/pages/master-events/MasterEventEdit";
 
 import GenerateDocuments from "@/pages/communication/GenerateDocuments";
 import ComposeEmail from "@/pages/communication/ComposeEmail";
@@ -65,8 +70,12 @@ function Router() {
         <Route path="/events/calendar" component={EventCalendar} />
         <Route path="/events/:id/edit" component={EventEdit} />
         <Route path="/events/:id/financials" component={EventFinancials} />
+        <Route path="/events/:id/functions/new" component={FunctionEdit} />
+        <Route path="/events/:id/functions/:functionId/menus/:menuId/edit" component={FunctionMenuEdit} />
         <Route path="/events/:id/functions/:functionId/services" component={FunctionServices} />
         <Route path="/events/:id/functions/:functionId/financials" component={FunctionFinancials} />
+        <Route path="/events/:id/functions/:functionId/edit" component={FunctionEdit} />
+        <Route path="/events/:id/functions/:functionId" component={FunctionDetail} />
         <Route path="/events/:id" component={EventDetail} />
         <Route path="/events" component={EventsList} />
 
@@ -102,11 +111,14 @@ function Router() {
 
         {/* Reports */}
         <Route path="/reports/scheduled-jobs" component={ReportScheduledJobs} />
+        <Route path="/reports/new" component={ReportNew} />
         <Route path="/reports/:id/edit" component={ReportEdit} />
         <Route path="/reports/:id/run" component={ReportRun} />
         <Route path="/reports" component={Reports} />
 
         {/* Master Events */}
+        <Route path="/master-events/new" component={MasterEventEdit} />
+        <Route path="/master-events/:id/edit" component={MasterEventEdit} />
         <Route path="/master-events/:id" component={MasterEventDetail} />
         <Route path="/master-events" component={MasterEvents} />
 
