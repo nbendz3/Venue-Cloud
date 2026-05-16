@@ -1,22 +1,47 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: VenueCloud API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: events
+    description: Event management
+  - name: functions
+    description: Function management
+  - name: leads
+    description: Event leads
+  - name: accounts
+    description: Account management
+  - name: contacts
+    description: Contact management
+  - name: tasks
+    description: Task management
+  - name: notes
+    description: Notes
+  - name: appointments
+    description: Appointments
+  - name: guest-rooms
+    description: Guest room blocks
+  - name: locations
+    description: Locations
+  - name: reports
+    description: Reports
+  - name: calendar
+    description: Calendar
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +49,1055 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Dashboard
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/tasks-today:
+    get:
+      operationId: getDashboardTasksToday
+      tags: [dashboard]
+      summary: Get tasks due today or overdue
+      responses:
+        "200":
+          description: Tasks list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
+  /dashboard/events-today:
+    get:
+      operationId: getDashboardEventsToday
+      tags: [dashboard]
+      summary: Get events starting today
+      responses:
+        "200":
+          description: Events list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+
+  /dashboard/functions-today:
+    get:
+      operationId: getDashboardFunctionsToday
+      tags: [dashboard]
+      summary: Get functions occurring today
+      responses:
+        "200":
+          description: Functions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventFunction"
+
+  # Events
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List all events
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: site
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+    post:
+      operationId: createEvent
+      tags: [events]
+      summary: Create a new event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventInput"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      summary: Get event by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "404":
+          description: Not found
+    put:
+      operationId: updateEvent
+      tags: [events]
+      summary: Update an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventUpdate"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      summary: Delete an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /events/{id}/functions:
+    get:
+      operationId: listEventFunctions
+      tags: [functions]
+      summary: List functions for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Functions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventFunction"
+    post:
+      operationId: createEventFunction
+      tags: [functions]
+      summary: Create a function for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventFunctionInput"
+      responses:
+        "201":
+          description: Created function
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFunction"
+
+  /events/{id}/notes:
+    get:
+      operationId: listEventNotes
+      tags: [notes]
+      summary: List notes for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notes list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+
+  /events/{id}/tasks:
+    get:
+      operationId: listEventTasks
+      tags: [tasks]
+      summary: List tasks for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tasks list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+
+  # Functions
+  /functions/{id}:
+    get:
+      operationId: getFunction
+      tags: [functions]
+      summary: Get function by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Function
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFunction"
+    put:
+      operationId: updateFunction
+      tags: [functions]
+      summary: Update a function
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventFunctionUpdate"
+      responses:
+        "200":
+          description: Updated function
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFunction"
+    delete:
+      operationId: deleteFunction
+      tags: [functions]
+      summary: Delete a function
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Leads
+  /leads:
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List all event leads
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Create a new lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadInput"
+      responses:
+        "201":
+          description: Created lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{id}:
+    get:
+      operationId: getLead
+      tags: [leads]
+      summary: Get lead by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    put:
+      operationId: updateLead
+      tags: [leads]
+      summary: Update a lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeadUpdate"
+      responses:
+        "200":
+          description: Updated lead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    delete:
+      operationId: deleteLead
+      tags: [leads]
+      summary: Delete a lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Accounts
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List all accounts
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "201":
+          description: Created account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  /accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get account by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+    put:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Update an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Delete an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Contacts
+  /contacts:
+    get:
+      operationId: listContacts
+      tags: [contacts]
+      summary: List all contacts
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: accountId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a new contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "201":
+          description: Created contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      tags: [contacts]
+      summary: Get contact by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    put:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactUpdate"
+      responses:
+        "200":
+          description: Updated contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Tasks
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List all tasks
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: relatedType
+          in: query
+          schema:
+            type: string
+        - name: relatedId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/{id}:
+    put:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Notes
+  /notes:
+    get:
+      operationId: listNotes
+      tags: [notes]
+      summary: List notes
+      parameters:
+        - name: relatedType
+          in: query
+          schema:
+            type: string
+        - name: relatedId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+    post:
+      operationId: createNote
+      tags: [notes]
+      summary: Create a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteInput"
+      responses:
+        "201":
+          description: Created note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+
+  /notes/{id}:
+    put:
+      operationId: updateNote
+      tags: [notes]
+      summary: Update a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteUpdate"
+      responses:
+        "200":
+          description: Updated note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+    delete:
+      operationId: deleteNote
+      tags: [notes]
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Appointments
+  /appointments:
+    get:
+      operationId: listAppointments
+      tags: [appointments]
+      summary: List appointments
+      parameters:
+        - name: relatedType
+          in: query
+          schema:
+            type: string
+        - name: relatedId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of appointments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Appointment"
+    post:
+      operationId: createAppointment
+      tags: [appointments]
+      summary: Create an appointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentInput"
+      responses:
+        "201":
+          description: Created appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+
+  /appointments/{id}:
+    put:
+      operationId: updateAppointment
+      tags: [appointments]
+      summary: Update an appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentUpdate"
+      responses:
+        "200":
+          description: Updated appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+    delete:
+      operationId: deleteAppointment
+      tags: [appointments]
+      summary: Delete an appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Guest Room Blocks
+  /guest-room-blocks:
+    get:
+      operationId: listGuestRoomBlocks
+      tags: [guest-rooms]
+      summary: List guest room blocks
+      parameters:
+        - name: eventId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of guest room blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuestRoomBlock"
+    post:
+      operationId: createGuestRoomBlock
+      tags: [guest-rooms]
+      summary: Create a guest room block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestRoomBlockInput"
+      responses:
+        "201":
+          description: Created block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestRoomBlock"
+
+  /guest-room-blocks/{id}:
+    put:
+      operationId: updateGuestRoomBlock
+      tags: [guest-rooms]
+      summary: Update a guest room block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestRoomBlockUpdate"
+      responses:
+        "200":
+          description: Updated block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GuestRoomBlock"
+    delete:
+      operationId: deleteGuestRoomBlock
+      tags: [guest-rooms]
+      summary: Delete a guest room block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Locations
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [locations]
+      summary: List all locations
+      responses:
+        "200":
+          description: List of locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Location"
+    post:
+      operationId: createLocation
+      tags: [locations]
+      summary: Create a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationInput"
+      responses:
+        "201":
+          description: Created location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+
+  # Reports
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List all reports
+      parameters:
+        - name: reportType
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Create a report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Created report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+
+  /reports/{id}/run:
+    get:
+      operationId: runReport
+      tags: [reports]
+      summary: Run a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Report results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResult"
+
+  # Calendar
+  /calendar/events:
+    get:
+      operationId: getCalendarEvents
+      tags: [calendar]
+      summary: Get events for calendar view
+      parameters:
+        - name: start
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: siteId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Calendar events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEvent"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1108,1149 @@ components:
       required:
         - status
 
+    DashboardSummary:
+      type: object
+      properties:
+        totalEvents:
+          type: integer
+        eventsThisMonth:
+          type: integer
+        openLeads:
+          type: integer
+        openTasks:
+          type: integer
+        totalAccounts:
+          type: integer
+        totalContacts:
+          type: integer
+        eventsByStatus:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+            required: [status, count]
+        upcomingEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+      required:
+        - totalEvents
+        - eventsThisMonth
+        - openLeads
+        - openTasks
+        - totalAccounts
+        - totalContacts
+        - eventsByStatus
+        - upcomingEvents
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventName:
+          type: string
+        eventNumber:
+          type: ["string", "null"]
+        eventType:
+          type: ["string", "null"]
+        eventCategory:
+          type: ["string", "null"]
+        marketType:
+          type: ["string", "null"]
+        referralType:
+          type: ["string", "null"]
+        estimatedAttendance:
+          type: ["integer", "null"]
+        owner:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        eventStatus:
+          type: string
+          enum: [New, Tentative, Definite, Closed, Cancelled]
+        site:
+          type: ["string", "null"]
+        eventNote:
+          type: ["string", "null"]
+        paymentArrangements:
+          type: ["string", "null"]
+        billingNotes:
+          type: ["string", "null"]
+        taxExempt:
+          type: ["boolean", "null"]
+        primaryContactId:
+          type: ["integer", "null"]
+        billingContactId:
+          type: ["integer", "null"]
+        masterEventId:
+          type: ["integer", "null"]
+        groupMasterAccount:
+          type: ["string", "null"]
+        lifecycleModel:
+          type: ["string", "null"]
+        pmsGroupNumber:
+          type: ["string", "null"]
+        primaryContactName:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - eventName
+        - eventStatus
+        - createdAt
+        - updatedAt
+
+    EventInput:
+      type: object
+      properties:
+        eventName:
+          type: string
+        eventType:
+          type: string
+        eventCategory:
+          type: string
+        marketType:
+          type: string
+        referralType:
+          type: string
+        estimatedAttendance:
+          type: integer
+        owner:
+          type: string
+        salesperson:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        eventStatus:
+          type: string
+        site:
+          type: string
+        eventNote:
+          type: string
+        paymentArrangements:
+          type: string
+        billingNotes:
+          type: string
+        taxExempt:
+          type: boolean
+        primaryContactId:
+          type: integer
+        billingContactId:
+          type: integer
+        masterEventId:
+          type: integer
+        groupMasterAccount:
+          type: string
+        lifecycleModel:
+          type: string
+        pmsGroupNumber:
+          type: string
+      required:
+        - eventName
+
+    EventUpdate:
+      type: object
+      properties:
+        eventName:
+          type: string
+        eventType:
+          type: string
+        eventCategory:
+          type: string
+        estimatedAttendance:
+          type: integer
+        owner:
+          type: string
+        salesperson:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        eventStatus:
+          type: string
+        site:
+          type: string
+        eventNote:
+          type: string
+        paymentArrangements:
+          type: string
+        billingNotes:
+          type: string
+        taxExempt:
+          type: boolean
+        primaryContactId:
+          type: integer
+        billingContactId:
+          type: integer
+
+    EventFunction:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        functionType:
+          type: ["string", "null"]
+        functionDate:
+          type: ["string", "null"]
+        locationId:
+          type: ["integer", "null"]
+        locationName:
+          type: ["string", "null"]
+        locationCode:
+          type: ["string", "null"]
+        startTime:
+          type: ["string", "null"]
+        endTime:
+          type: ["string", "null"]
+        setupMinutes:
+          type: ["integer", "null"]
+        teardownMinutes:
+          type: ["integer", "null"]
+        setupStyle:
+          type: ["string", "null"]
+        roomRental:
+          type: ["number", "null"]
+        estimatedAttendance:
+          type: ["integer", "null"]
+        guaranteedAttendance:
+          type: ["integer", "null"]
+        setCount:
+          type: ["integer", "null"]
+        owner:
+          type: ["string", "null"]
+        functionNumber:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        eventName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - eventId
+        - createdAt
+        - updatedAt
+
+    EventFunctionInput:
+      type: object
+      properties:
+        functionType:
+          type: string
+        functionDate:
+          type: string
+        locationId:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        setupMinutes:
+          type: integer
+        teardownMinutes:
+          type: integer
+        setupStyle:
+          type: string
+        roomRental:
+          type: number
+        estimatedAttendance:
+          type: integer
+        guaranteedAttendance:
+          type: integer
+        setCount:
+          type: integer
+        owner:
+          type: string
+        notes:
+          type: string
+
+    EventFunctionUpdate:
+      type: object
+      properties:
+        functionType:
+          type: string
+        functionDate:
+          type: string
+        locationId:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        setupMinutes:
+          type: integer
+        teardownMinutes:
+          type: integer
+        setupStyle:
+          type: string
+        roomRental:
+          type: number
+        estimatedAttendance:
+          type: integer
+        guaranteedAttendance:
+          type: integer
+        notes:
+          type: string
+
+    Lead:
+      type: object
+      properties:
+        id:
+          type: integer
+        leadName:
+          type: string
+        division:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        leadType:
+          type: ["string", "null"]
+        budget:
+          type: ["number", "null"]
+        probability:
+          type: ["integer", "null"]
+        leadStatus:
+          type: string
+          enum: [New, Tentative, Definite, Cancelled]
+        decisionDate:
+          type: ["string", "null"]
+        lastActivity:
+          type: ["string", "null"]
+        nextAction:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        referralType:
+          type: ["string", "null"]
+        functionType:
+          type: ["string", "null"]
+        eventDate:
+          type: ["string", "null"]
+        startTime:
+          type: ["string", "null"]
+        endTime:
+          type: ["string", "null"]
+        locationId:
+          type: ["integer", "null"]
+        estimatedAttendance:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        primaryContactId:
+          type: ["integer", "null"]
+        billingContactId:
+          type: ["integer", "null"]
+        primaryContactName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - leadName
+        - leadStatus
+        - createdAt
+        - updatedAt
+
+    LeadInput:
+      type: object
+      properties:
+        leadName:
+          type: string
+        division:
+          type: string
+        site:
+          type: string
+        leadType:
+          type: string
+        budget:
+          type: number
+        probability:
+          type: integer
+        leadStatus:
+          type: string
+        decisionDate:
+          type: string
+        nextAction:
+          type: string
+        owner:
+          type: string
+        salesperson:
+          type: string
+        functionType:
+          type: string
+        eventDate:
+          type: string
+        estimatedAttendance:
+          type: integer
+        description:
+          type: string
+        primaryContactId:
+          type: integer
+      required:
+        - leadName
+
+    LeadUpdate:
+      type: object
+      properties:
+        leadName:
+          type: string
+        division:
+          type: string
+        leadStatus:
+          type: string
+        budget:
+          type: number
+        probability:
+          type: integer
+        decisionDate:
+          type: string
+        nextAction:
+          type: string
+        owner:
+          type: string
+        salesperson:
+          type: string
+        estimatedAttendance:
+          type: integer
+        description:
+          type: string
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        accountNumber:
+          type: ["string", "null"]
+        parentAccountId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        mailingAddress1:
+          type: ["string", "null"]
+        mailingAddress2:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        postalCode:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        taxExempt:
+          type: ["boolean", "null"]
+        taxExemptExpDate:
+          type: ["string", "null"]
+        taxExemptNumber:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    AccountInput:
+      type: object
+      properties:
+        name:
+          type: string
+        accountNumber:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+        phone:
+          type: string
+        fax:
+          type: string
+        website:
+          type: string
+        mailingAddress1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        taxExempt:
+          type: boolean
+      required:
+        - name
+
+    AccountUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+        phone:
+          type: string
+        website:
+          type: string
+        mailingAddress1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        taxExempt:
+          type: boolean
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: integer
+        salutation:
+          type: ["string", "null"]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        accountId:
+          type: ["integer", "null"]
+        accountName:
+          type: ["string", "null"]
+        title:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        workPhone:
+          type: ["string", "null"]
+        mobilePhone:
+          type: ["string", "null"]
+        homePhone:
+          type: ["string", "null"]
+        fax:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        active:
+          type: ["boolean", "null"]
+        department:
+          type: ["string", "null"]
+        contactType:
+          type: ["string", "null"]
+        preferences:
+          type: ["string", "null"]
+        birthday:
+          type: ["string", "null"]
+        anniversary:
+          type: ["string", "null"]
+        information:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        mailingAddress1:
+          type: ["string", "null"]
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        postalCode:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - firstName
+        - lastName
+        - createdAt
+        - updatedAt
+
+    ContactInput:
+      type: object
+      properties:
+        salutation:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        accountId:
+          type: integer
+        title:
+          type: string
+        email:
+          type: string
+        workPhone:
+          type: string
+        mobilePhone:
+          type: string
+        owner:
+          type: string
+        site:
+          type: string
+        department:
+          type: string
+        contactType:
+          type: string
+        mailingAddress1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+      required:
+        - firstName
+        - lastName
+
+    ContactUpdate:
+      type: object
+      properties:
+        salutation:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        accountId:
+          type: integer
+        title:
+          type: string
+        email:
+          type: string
+        workPhone:
+          type: string
+        mobilePhone:
+          type: string
+        owner:
+          type: string
+        department:
+          type: string
+        mailingAddress1:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+        description:
+          type: ["string", "null"]
+        relatedType:
+          type: ["string", "null"]
+        relatedId:
+          type: ["integer", "null"]
+        contactId:
+          type: ["integer", "null"]
+        category:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [Open, Closed]
+        salesperson:
+          type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        relatedName:
+          type: ["string", "null"]
+        contactName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - priority
+        - status
+        - createdAt
+        - updatedAt
+
+    TaskInput:
+      type: object
+      properties:
+        name:
+          type: string
+        priority:
+          type: string
+        description:
+          type: string
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        contactId:
+          type: integer
+        category:
+          type: string
+        status:
+          type: string
+        salesperson:
+          type: string
+        dueDate:
+          type: string
+        site:
+          type: string
+      required:
+        - name
+        - priority
+
+    TaskUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        priority:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        category:
+          type: string
+        result:
+          type: string
+        salesperson:
+          type: string
+        dueDate:
+          type: string
+
+    Note:
+      type: object
+      properties:
+        id:
+          type: integer
+        relatedType:
+          type: ["string", "null"]
+        relatedId:
+          type: ["integer", "null"]
+        noteText:
+          type: string
+        salesperson:
+          type: ["string", "null"]
+        internal:
+          type: ["boolean", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - noteText
+        - createdAt
+
+    NoteInput:
+      type: object
+      properties:
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        noteText:
+          type: string
+        salesperson:
+          type: string
+        internal:
+          type: boolean
+      required:
+        - noteText
+
+    NoteUpdate:
+      type: object
+      properties:
+        noteText:
+          type: string
+        salesperson:
+          type: string
+        internal:
+          type: boolean
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        startDatetime:
+          type: ["string", "null"]
+        endDatetime:
+          type: ["string", "null"]
+        relatedType:
+          type: ["string", "null"]
+        relatedId:
+          type: ["integer", "null"]
+        contactId:
+          type: ["integer", "null"]
+        category:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        contactName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - createdAt
+
+    AppointmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        startDatetime:
+          type: string
+        endDatetime:
+          type: string
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        contactId:
+          type: integer
+        category:
+          type: string
+        salesperson:
+          type: string
+      required:
+        - name
+
+    AppointmentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        startDatetime:
+          type: string
+        endDatetime:
+          type: string
+        category:
+          type: string
+        result:
+          type: string
+        salesperson:
+          type: string
+
+    GuestRoomBlock:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        blockName:
+          type: string
+        startDate:
+          type: ["string", "null"]
+        departureDate:
+          type: ["string", "null"]
+        cutoffDate:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+        contracted:
+          type: ["integer", "null"]
+        blocked:
+          type: ["integer", "null"]
+        forecast:
+          type: ["integer", "null"]
+        pickup:
+          type: ["integer", "null"]
+        numRooms:
+          type: ["integer", "null"]
+        avgRate:
+          type: ["number", "null"]
+        total:
+          type: ["number", "null"]
+        contactId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - eventId
+        - blockName
+        - createdAt
+
+    GuestRoomBlockInput:
+      type: object
+      properties:
+        eventId:
+          type: integer
+        blockName:
+          type: string
+        startDate:
+          type: string
+        departureDate:
+          type: string
+        cutoffDate:
+          type: string
+        site:
+          type: string
+        status:
+          type: string
+        contracted:
+          type: integer
+        blocked:
+          type: integer
+        numRooms:
+          type: integer
+        avgRate:
+          type: number
+        contactId:
+          type: integer
+      required:
+        - eventId
+        - blockName
+
+    GuestRoomBlockUpdate:
+      type: object
+      properties:
+        blockName:
+          type: string
+        startDate:
+          type: string
+        departureDate:
+          type: string
+        cutoffDate:
+          type: string
+        status:
+          type: string
+        contracted:
+          type: integer
+        blocked:
+          type: integer
+        forecast:
+          type: integer
+        pickup:
+          type: integer
+        numRooms:
+          type: integer
+        avgRate:
+          type: number
+
+    Location:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: ["string", "null"]
+        capacity:
+          type: ["integer", "null"]
+        locationGroup:
+          type: ["string", "null"]
+        locationType:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - createdAt
+
+    LocationInput:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        capacity:
+          type: integer
+        locationGroup:
+          type: string
+        locationType:
+          type: string
+        site:
+          type: string
+        description:
+          type: string
+      required:
+        - name
+
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+        reportName:
+          type: string
+        description:
+          type: ["string", "null"]
+        reportType:
+          type: ["string", "null"]
+        folder:
+          type: ["string", "null"]
+        sqlQuery:
+          type: ["string", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - reportName
+        - createdAt
+
+    ReportInput:
+      type: object
+      properties:
+        reportName:
+          type: string
+        description:
+          type: string
+        reportType:
+          type: string
+        folder:
+          type: string
+        sqlQuery:
+          type: string
+        createdBy:
+          type: string
+      required:
+        - reportName
+
+    ReportResult:
+      type: object
+      properties:
+        reportId:
+          type: integer
+        reportName:
+          type: string
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        rowCount:
+          type: integer
+      required:
+        - reportId
+        - reportName
+        - columns
+        - rows
+        - rowCount
+
+    CalendarEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventName:
+          type: string
+        startDate:
+          type: ["string", "null"]
+        endDate:
+          type: ["string", "null"]
+        eventStatus:
+          type: string
+        eventType:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        estimatedAttendance:
+          type: ["integer", "null"]
+        functions:
+          type: array
+          items:
+            type: object
+            properties:
+              startTime:
+                type: ["string", "null"]
+              endTime:
+                type: ["string", "null"]
+              locationCode:
+                type: ["string", "null"]
+              functionType:
+                type: ["string", "null"]
+            required: []
+      required:
+        - id
+        - eventName
+        - eventStatus

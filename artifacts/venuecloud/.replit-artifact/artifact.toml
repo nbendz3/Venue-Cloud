@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "VenueCloud"
+version = "1.0.0"
+id = "artifacts/venuecloud"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18371
+
+[services.development]
+run = "pnpm --filter @workspace/venuecloud run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/venuecloud", "run", "build" ]
+publicDir = "artifacts/venuecloud/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18371"
+BASE_PATH = "/"

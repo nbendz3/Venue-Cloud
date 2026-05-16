@@ -1,0 +1,198 @@
+Build a full-stack web application called "VenueCloud" — a venue sales and event management system for a resort/hospitality property. Use React (with React Router) for the frontend, Node.js + Express for the backend API, and SQLite (via better-sqlite3) for the database. Style with Tailwind CSS. Here is the full specification:
+
+---
+
+## GLOBAL LAYOUT
+- Dark sidebar navigation (left, fixed) with the property name at the top ("The Pines Resort")
+- Nav items with icons: Home, Events, Event Leads, Tasks, Accounts, Contacts, Reports, Guest Rooms, Settings
+- Top bar with: property name, search icon, help icon, a "more actions" (…) menu, a messenger icon
+- A "Recent Items" bookmark bar just below the top bar showing up to 8 recently viewed records (Events, Contacts, Accounts, etc.) with colored icons
+- Consistent page header showing module name and sub-page name (e.g., "Events / Calendar")
+
+---
+
+## MODULE 1: HOME (Dashboard — "My Day At A Glance")
+- 5 sections as paginated tables:
+  1. Tasks: tasks past due or due today — columns: Name, Priority, Related Business, Related Business Date, Site, Status, Date, Contact, Account Name
+  2. Events: events beginning today — columns: Name, Site, Attendance, Status, Contact, Account Name
+  3. Functions: functions occurring today — columns: Event Name, Function Number, Function, Site, Time, Status, Contact, Account Name
+  4. Unfiled Correspondence: columns: Actions, Subject, Type, Owner, Date, Email Status
+  5. Background Activities: report jobs queue — columns: Name, Submission Date/Time, Status, Activity Type, Start/End Date/Time, Results Explanation, Download Results
+
+---
+
+## MODULE 2: EVENTS CALENDAR
+- Monthly/Daily/Multi-Day calendar views (toggle buttons)
+- Each event shown as a colored block with: start time, event name (truncated), arrow icon
+- Tooltip on hover: all function times, location codes, attendance, status
+- Left toolbar (collapsible with Alt+T):
+  - New Event button
+  - New Master Event button
+  - Quick Entry button
+  - Batch Generate Documents button
+  - View Leads Pending link
+  - Toggle: Show Lead Option Holds (checkbox)
+  - Toggle: Show Master Events (checkbox)
+  - Filter dropdowns: Event Status, Event Types, Location Groups, Locations, Location Types, Site Types
+  - Section: List Views, Availability Options, Guest Room Filters, Usage Options, Manage Important Dates, Calendar Settings
+- Top controls: date picker, site selector dropdown, Event Calendar Legend toggle, fullscreen icon
+- Navigation: prev/next month arrows, Today button, prev/next year arrows
+- Start Time / End Time toggle buttons for display mode
+
+---
+
+## DATA MODELS (SQLite tables)
+
+### contacts
+id, salutation, first_name, last_name, account_id, title, email, work_phone, mobile_phone, home_phone, fax, owner, site, active, department, contact_type, preferences, birthday, anniversary, information, description, mailing_address_1, mailing_address_2, city, state, postal_code, country, other_address_1, other_address_2, other_city, other_state, other_postal_code, other_country, created_at, updated_at, created_by, updated_by
+
+### accounts
+id, name, account_number, parent_account_id, description, owner, phone, fax, website, mailing_address_1, mailing_address_2, city, state, postal_code, country, tax_exempt (bool), tax_exempt_exp_date, tax_exempt_number, created_at, updated_at, created_by, updated_by
+
+### events
+id, primary_contact_id, event_name, group_master_account, event_type, event_category, market_type, referral_type, estimated_attendance, owner, salesperson, event_number (auto-generated), start_date, end_date, lifecycle_model, pms_group_number, event_status (New/Tentative/Definite/Closed/Cancelled), site, event_note, payment_arrangements, billing_contact_id, billing_notes, tax_exempt, master_event_id, created_at, updated_at, created_by, updated_by
+
+### functions (sub-records of events)
+id, event_id, function_type, function_date, location_id, start_time, end_time, setup_minutes, teardown_minutes, setup_style, room_rental, auto_update_attendance (bool), estimated_attendance, guaranteed_attendance, set_count, owner, function_number (auto), notes, created_at, updated_at, created_by, updated_by
+
+### locations
+id, name, code (short abbreviation), capacity, location_group, location_type, site, description
+
+### event_leads
+id, primary_contact_id, lead_name, division, site, lead_type, budget, probability, lead_status (New/Tentative/Definite/Cancelled), decision_date, last_activity, next_action, owner, salesperson, referral_type, function_type, event_date, start_time, end_time, location_id, estimated_attendance, description, billing_contact_id, billing_notes, payment_arrangements, created_at, updated_at, created_by, updated_by
+
+### tasks
+id, name, priority (High/Medium/Low), description, related_type (Event/Lead/Contact/Account), related_id, contact_id, category, result, status (Open/Closed), salesperson, due_date, site, created_at, updated_at
+
+### notes
+id, related_type, related_id, note_text, salesperson, internal (bool), created_at
+
+### appointments
+id, name, start_datetime, end_datetime, related_type, related_id, contact_id, category, result, salesperson, created_at
+
+### communication_history
+id, related_type, related_id, content_preview, has_attachments, subject, contact_id, type, owner, date, email_status, esignature_status, category, result, created_at
+
+### guest_room_blocks
+id, event_id, block_name, start_date, departure_date, cutoff_date, site, status, contracted, blocked, forecast, pickup, num_rooms, avg_rate, total, contact_id
+
+### personnel
+id, name, role, phone, mobile_phone, fax, email, related_type, related_id
+
+### event_lifecycle
+id, event_id, status, phase, financial_snapshot, date_processed
+
+### reports
+id, report_name, description, report_type (Event/Function/Lead/etc.), folder, sql_query, created_by, created_at
+
+---
+
+## MODULE 3: EVENT DETAIL PAGE
+Full detail view with jump-link navigation to sections:
+1. **Event Details** — all fields from events table, display mode + Edit Event button
+2. **Billing Details** — payment arrangements, billing contact, tax exempt, billing notes
+3. **Functions** — paginated table with columns: Actions (Copy|Edit|Service Menus|Cancel), Start Date, Start Time, End Time, Function Type, Function Name, Function #, Locations, Location Description, Attendance, Room Rental, Minimum Charge, Has Services. Buttons: New Function, Edit Functions, Mass Edit, Copy Selected, Cancel Selected
+4. **Guest Room Blocks** — table with block details + Add Guest Rooms Block button
+5. **Guest Room Bookings** — table
+6. **Personnel** — role dropdown + Add Personnel for Role button + table
+7. **Event Timeline** — Add/Edit/Copy Timeline Items buttons + table (Start Date, Start Time, Name, Description)
+8. **Contacts** — contact role dropdown + Add Contact + table (Contact, Role, phones, email, account)
+9. **Event Lifecycle** — visual status flow table: rows for New→Tentative→Definite→Close→Cancel/Deny with checkmarks, status, phase, financial snapshot, date processed. Shows Event Total Adjusted Charges.
+10. **Notes** — New Note button + table (Notes, Date/Time, Salesperson, Internal)
+11. **Tasks** — New Task, Reassign, Close Selected + table
+12. **Appointments** — New Appointment + table
+13. **Communication History** — Log Activity, Generate Event Document, Send Event Email buttons + table
+14. **Sertifi eSignature Details** — Create Folder button
+15. **Event Booking Details** — Edit Booking Details + Guest Rooms Block Indicator checkbox
+16. **Event Attachments** — Attach Files + table (Name, Description, Size, Last Updated, Last Updated By)
+17. **Function Attachments** — table (Function, Name, Description, Size, Last Updated, Last Updated By)
+18. **Last Updated** — Last Updated Date/Time, Last Updated By, Created Date/Time, Created By, View Change History link
+
+Header: breadcrumb link to Master Event (if any), "Edit Event" and "View Financial Details" and "…" action buttons, event title showing "Event Name - Day DD/MM/YYYY - Event#"
+
+---
+
+## MODULE 4: FUNCTION DETAIL PAGE
+Sections: Function Details, Personnel, Function Timeline, Services (Service Menus New + Classic buttons), Notes, Tasks, Appointments, Communication History (with Generate/Send for Function AND Event/Master Event), Function Booking Details, Attachments, Last Updated
+
+"Show Details for Function" dropdown at top to switch between functions of the same event.
+
+---
+
+## MODULE 5: EVENT LEADS
+- List page: folder/view selector, New button, Mass Edit, Delete Selected, List View Search
+- Detail page with same section pattern as events: Lead Details, Billing Details, Event Lead Functions, Contacts, Services, Notes, Tasks, Appointments, Communication History, Attachments, Last Updated
+
+---
+
+## MODULE 6: ACCOUNTS
+- List page with: New, Inactivate Selected, Consolidate Selected, Limit to items I own checkbox, Include Inactive checkbox, search
+- Detail: Account Details, Address Details, Billing Details, Personnel, Contacts (table), Affiliated Accounts, Affiliated Contacts, Volume Contracts, Master Events, Events, Guest List Bookings, Guest Rooms Blocks, Event Leads, Notes, Communication History, Affiliated Communication History, Attachments, Account References, Last Updated
+- Actions: New, Copy, Edit, Delete, View Hierarchy
+
+---
+
+## MODULE 7: CONTACTS
+- List page with table: Name, Work Phone, Mobile Phone, Email, Account Name, Account Number, Membership Name. Actions per row: Copy | Edit | Delete. Bulk select + New button.
+- Detail: Contact Details, Address Details, Credit Cards, Affiliated Accounts, Master Events, Events, Guest List Bookings, Guest Rooms Blocks, Event Leads, Notes, Tasks, Appointments, Communication History, Attachments, Last Updated
+- Actions: New, Copy, Edit, Delete, Purge
+
+---
+
+## MODULE 8: TASKS
+- List page with folder/view selector, New, Delete Selected, Close Selected, Reassign Selected, search
+
+---
+
+## MODULE 9: REPORTS
+- Folder tree on left: hierarchical folder structure
+- Report list table: Actions (Copy|Edit|Run|Export|Delete|Chart), Report Name, Description, Report Type, Folder, Created By, Created Date/Time
+- Filter by: Report Type dropdown, Search String, Limit to Reports I Own checkbox
+- Buttons: New Report, View Scheduled Report Jobs, View Report Job Results
+- Clicking "Run" executes the saved SQL/query and shows paginated results
+
+---
+
+## MODULE 10: GUEST ROOMS CONTROL
+- Calendar/grid view
+- View options: 3 Days, 1 Week, 2 Weeks, 4 Weeks (default: 1 Week)
+- Rows (resource rows):
+  - Remaining Inventory
+  - New Bookings
+  - Prospect Bookings
+  - Option Holds Bookings
+  - Tentative Bookings
+  - Definite Bookings
+  - Total Inventory
+  - Transient Protected Inventory
+  - Minimum Available Rates (USD)
+  - Then one row per event block showing room counts per day
+  - Then one row per location showing booked functions
+- Columns: time slots (12AM, 8AM, 4PM) per day
+- Left toolbar: toggles for Show Function Space, Show Events, Show Dependencies; filters for Event Status, Event Types, Function Location Groups, Function Locations, Function Location Types, Site Types
+- Today button, date navigation arrows, date picker, site selector
+
+---
+
+## MODULE 11: SETTINGS
+Expandable accordion sections: Enterprise, Activities/Tasks/Appointments, Accounts, Contacts, Correspondence, Event Leads, Events, Event Financials, Event Services, Event Guest Lists, Event Room Diagramming, Guest Rooms Control, Interfaces, Marketing, Personnel, Users, Workflow
+
+---
+
+## API ROUTES (REST)
+- GET/POST /api/events, GET/PUT/DELETE /api/events/:id
+- GET/POST /api/events/:id/functions, GET/PUT/DELETE /api/functions/:id
+- GET/POST /api/leads, GET/PUT/DELETE /api/leads/:id
+- GET/POST /api/accounts, GET/PUT/DELETE /api/accounts/:id
+- GET/POST /api/contacts, GET/PUT/DELETE /api/contacts/:id
+- GET/POST /api/tasks, PUT/DELETE /api/tasks/:id
+- GET/POST /api/notes, PUT/DELETE /api/notes/:id
+- GET/POST /api/appointments, PUT/DELETE /api/appointments/:id
+- GET/POST /api/guest-room-blocks, PUT/DELETE /api/guest-room-blocks/:id
+- GET/POST /api/locations
+- GET/POST /api/reports, GET /api/reports/:id/run
+- GET /api/calendar/events?start=&end=&siteId=&status=&type=
+
+Seed the database with ~10 sample contacts, 5 accounts, 10 events with functions, 5 leads, and 3 locations.
+
+Use React Router for all navigation. Use a global state/context for recent items tracking (last 8 viewed records). All list tables should be paginated with 10/25/50/100 per page options. Include a dark/light theme toggle. Make the UI match a professional hospitality CRM — dark sidebar, white/gray content area, red accent color for section headers and active nav item.
