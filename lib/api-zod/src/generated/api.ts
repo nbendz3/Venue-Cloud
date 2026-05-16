@@ -1397,7 +1397,32 @@ export const CreateReportBody = zod.object({
 
 
 /**
- * @summary Run a report
+ * @summary List report types
+ */
+export const ListReportTypesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string().optional()
+})
+export const ListReportTypesResponse = zod.array(ListReportTypesResponseItem)
+
+
+/**
+ * @summary Get available columns for a report type
+ */
+export const GetReportColumnsParams = zod.object({
+  "reportType": zod.coerce.string()
+})
+
+export const GetReportColumnsResponseItem = zod.object({
+  "group": zod.string(),
+  "fields": zod.array(zod.string())
+})
+export const GetReportColumnsResponse = zod.array(GetReportColumnsResponseItem)
+
+
+/**
+ * @summary Run a report (GET)
  */
 export const RunReportParams = zod.object({
   "id": zod.coerce.number()
@@ -1409,6 +1434,491 @@ export const RunReportResponse = zod.object({
   "columns": zod.array(zod.string()),
   "rows": zod.array(zod.record(zod.string(), zod.unknown())),
   "rowCount": zod.number()
+})
+
+
+/**
+ * @summary Run a report (POST, supports pagination)
+ */
+export const RunReportPostParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RunReportPostBody = zod.object({
+  "page": zod.number().optional()
+})
+
+export const RunReportPostResponse = zod.object({
+  "reportId": zod.number(),
+  "reportName": zod.string(),
+  "columns": zod.array(zod.string()),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown())),
+  "rowCount": zod.number()
+})
+
+
+/**
+ * @summary Get a single report
+ */
+export const GetReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetReportResponse = zod.object({
+  "id": zod.number(),
+  "reportName": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string().nullish(),
+  "folder": zod.string().nullish(),
+  "sqlQuery": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a report
+ */
+export const UpdateReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateReportBody = zod.object({
+  "reportName": zod.string(),
+  "description": zod.string().optional(),
+  "reportType": zod.string().optional(),
+  "folder": zod.string().optional(),
+  "sqlQuery": zod.string().optional(),
+  "createdBy": zod.string().optional()
+})
+
+export const UpdateReportResponse = zod.object({
+  "id": zod.number(),
+  "reportName": zod.string(),
+  "description": zod.string().nullish(),
+  "reportType": zod.string().nullish(),
+  "folder": zod.string().nullish(),
+  "sqlQuery": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a report
+ */
+export const DeleteReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List all report schedules
+ */
+export const ListReportSchedulesResponseItem = zod.object({
+  "id": zod.number(),
+  "reportId": zod.number(),
+  "frequency": zod.string(),
+  "dayOfWeek": zod.string().nullish(),
+  "dayOfMonth": zod.number().nullish(),
+  "runTime": zod.string().nullish(),
+  "outputFormat": zod.string(),
+  "recipients": zod.string().nullish(),
+  "isActive": zod.boolean().optional(),
+  "createdAt": zod.string().optional(),
+  "createdBy": zod.string().nullish()
+})
+export const ListReportSchedulesResponse = zod.array(ListReportSchedulesResponseItem)
+
+
+/**
+ * @summary Create a report schedule
+ */
+export const CreateReportScheduleBody = zod.object({
+  "reportId": zod.number(),
+  "frequency": zod.string(),
+  "dayOfWeek": zod.string().optional(),
+  "dayOfMonth": zod.number().optional(),
+  "runTime": zod.string().optional(),
+  "outputFormat": zod.string(),
+  "recipients": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a schedule
+ */
+export const DeleteReportScheduleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List master events
+ */
+export const ListMasterEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "masterEventName": zod.string(),
+  "masterEventNumber": zod.string().nullish(),
+  "masterEventType": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventName": zod.string(),
+  "eventNumber": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "eventCategory": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "estimatedAttendance": zod.number().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "eventStatus": zod.enum(['New', 'Tentative', 'Definite', 'Closed', 'Cancelled']),
+  "site": zod.string().nullish(),
+  "eventNote": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "taxExempt": zod.boolean().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "masterEventId": zod.number().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "lifecycleModel": zod.string().nullish(),
+  "pmsGroupNumber": zod.string().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "accountName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})).optional()
+})
+export const ListMasterEventsResponse = zod.array(ListMasterEventsResponseItem)
+
+
+/**
+ * @summary Create a master event
+ */
+export const CreateMasterEventBody = zod.object({
+  "masterEventName": zod.string(),
+  "masterEventType": zod.string().optional(),
+  "marketType": zod.string().optional(),
+  "referralType": zod.string().optional(),
+  "groupMasterAccount": zod.string().optional(),
+  "owner": zod.string().optional(),
+  "salesperson": zod.string().optional(),
+  "division": zod.string().optional(),
+  "paymentArrangements": zod.string().optional(),
+  "primaryContactId": zod.number().optional(),
+  "billingContactId": zod.number().optional(),
+  "billingNotes": zod.string().optional(),
+  "createdBy": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a master event
+ */
+export const GetMasterEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMasterEventResponse = zod.object({
+  "id": zod.number(),
+  "masterEventName": zod.string(),
+  "masterEventNumber": zod.string().nullish(),
+  "masterEventType": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventName": zod.string(),
+  "eventNumber": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "eventCategory": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "estimatedAttendance": zod.number().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "eventStatus": zod.enum(['New', 'Tentative', 'Definite', 'Closed', 'Cancelled']),
+  "site": zod.string().nullish(),
+  "eventNote": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "taxExempt": zod.boolean().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "masterEventId": zod.number().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "lifecycleModel": zod.string().nullish(),
+  "pmsGroupNumber": zod.string().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "accountName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})).optional()
+})
+
+
+/**
+ * @summary Update a master event
+ */
+export const UpdateMasterEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateMasterEventBody = zod.object({
+  "masterEventName": zod.string(),
+  "masterEventType": zod.string().optional(),
+  "marketType": zod.string().optional(),
+  "referralType": zod.string().optional(),
+  "groupMasterAccount": zod.string().optional(),
+  "owner": zod.string().optional(),
+  "salesperson": zod.string().optional(),
+  "division": zod.string().optional(),
+  "paymentArrangements": zod.string().optional(),
+  "primaryContactId": zod.number().optional(),
+  "billingContactId": zod.number().optional(),
+  "billingNotes": zod.string().optional(),
+  "createdBy": zod.string().optional()
+})
+
+export const UpdateMasterEventResponse = zod.object({
+  "id": zod.number(),
+  "masterEventName": zod.string(),
+  "masterEventNumber": zod.string().nullish(),
+  "masterEventType": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "events": zod.array(zod.object({
+  "id": zod.number(),
+  "eventName": zod.string(),
+  "eventNumber": zod.string().nullish(),
+  "eventType": zod.string().nullish(),
+  "eventCategory": zod.string().nullish(),
+  "marketType": zod.string().nullish(),
+  "referralType": zod.string().nullish(),
+  "estimatedAttendance": zod.number().nullish(),
+  "owner": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "eventStatus": zod.enum(['New', 'Tentative', 'Definite', 'Closed', 'Cancelled']),
+  "site": zod.string().nullish(),
+  "eventNote": zod.string().nullish(),
+  "paymentArrangements": zod.string().nullish(),
+  "billingNotes": zod.string().nullish(),
+  "taxExempt": zod.boolean().nullish(),
+  "primaryContactId": zod.number().nullish(),
+  "billingContactId": zod.number().nullish(),
+  "masterEventId": zod.number().nullish(),
+  "groupMasterAccount": zod.string().nullish(),
+  "lifecycleModel": zod.string().nullish(),
+  "pmsGroupNumber": zod.string().nullish(),
+  "primaryContactName": zod.string().nullish(),
+  "accountName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a master event
+ */
+export const DeleteMasterEventParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List communication history
+ */
+export const ListCommunicationHistoryQueryParams = zod.object({
+  "relatedType": zod.coerce.string().optional(),
+  "relatedId": zod.coerce.number().optional()
+})
+
+export const ListCommunicationHistoryResponseItem = zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "subject": zod.string().nullish(),
+  "type": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "contactId": zod.number().nullish(),
+  "contactName": zod.string().nullish(),
+  "content": zod.string().nullish(),
+  "internal": zod.boolean().nullish(),
+  "attachments": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "createdBy": zod.string().nullish()
+})
+export const ListCommunicationHistoryResponse = zod.array(ListCommunicationHistoryResponseItem)
+
+
+/**
+ * @summary Log a communication entry
+ */
+export const CreateCommunicationHistoryBody = zod.object({
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "subject": zod.string().optional(),
+  "type": zod.string().optional(),
+  "category": zod.string().optional(),
+  "result": zod.string().optional(),
+  "date": zod.string().optional(),
+  "contactId": zod.number().optional(),
+  "content": zod.string().optional(),
+  "internal": zod.boolean().optional(),
+  "attachments": zod.string().optional(),
+  "createdBy": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a communication entry
+ */
+export const UpdateCommunicationHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCommunicationHistoryBody = zod.object({
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "subject": zod.string().optional(),
+  "type": zod.string().optional(),
+  "category": zod.string().optional(),
+  "result": zod.string().optional(),
+  "date": zod.string().optional(),
+  "contactId": zod.number().optional(),
+  "content": zod.string().optional(),
+  "internal": zod.boolean().optional(),
+  "attachments": zod.string().optional(),
+  "createdBy": zod.string().optional()
+})
+
+export const UpdateCommunicationHistoryResponse = zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "subject": zod.string().nullish(),
+  "type": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "result": zod.string().nullish(),
+  "date": zod.string().nullish(),
+  "contactId": zod.number().nullish(),
+  "contactName": zod.string().nullish(),
+  "content": zod.string().nullish(),
+  "internal": zod.boolean().nullish(),
+  "attachments": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "createdBy": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a communication entry
+ */
+export const DeleteCommunicationHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List all items in a settings table
+ */
+export const ListSettingsTableParams = zod.object({
+  "table": zod.coerce.string()
+})
+
+export const ListSettingsTableResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string().optional()
+})
+export const ListSettingsTableResponse = zod.array(ListSettingsTableResponseItem)
+
+
+/**
+ * @summary Create a settings item
+ */
+export const CreateSettingsItemParams = zod.object({
+  "table": zod.coerce.string()
+})
+
+export const CreateSettingsItemBody = zod.object({
+  "name": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a settings item
+ */
+export const UpdateSettingsItemParams = zod.object({
+  "table": zod.coerce.string(),
+  "id": zod.coerce.number()
+})
+
+export const UpdateSettingsItemBody = zod.object({
+  "name": zod.string().optional()
+})
+
+export const UpdateSettingsItemResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a settings item
+ */
+export const DeleteSettingsItemParams = zod.object({
+  "table": zod.coerce.string(),
+  "id": zod.coerce.number()
 })
 
 

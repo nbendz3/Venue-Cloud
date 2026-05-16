@@ -1096,6 +1096,162 @@ export interface FunctionFinancials {
   lifecycleHistory?: FunctionLifecycleHistory[];
 }
 
+export interface ReportType {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface ReportColumnGroup {
+  group: string;
+  fields: string[];
+}
+
+export interface ReportSchedule {
+  id: number;
+  reportId: number;
+  frequency: string;
+  /** @nullable */
+  dayOfWeek?: string | null;
+  /** @nullable */
+  dayOfMonth?: number | null;
+  /** @nullable */
+  runTime?: string | null;
+  outputFormat: string;
+  /** @nullable */
+  recipients?: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+  /** @nullable */
+  createdBy?: string | null;
+}
+
+export interface ReportScheduleInput {
+  reportId: number;
+  frequency: string;
+  dayOfWeek?: string;
+  dayOfMonth?: number;
+  runTime?: string;
+  outputFormat: string;
+  recipients?: string;
+  isActive?: boolean;
+  createdBy?: string;
+}
+
+export interface MasterEvent {
+  id: number;
+  masterEventName: string;
+  /** @nullable */
+  masterEventNumber?: string | null;
+  /** @nullable */
+  masterEventType?: string | null;
+  /** @nullable */
+  marketType?: string | null;
+  /** @nullable */
+  referralType?: string | null;
+  /** @nullable */
+  groupMasterAccount?: string | null;
+  /** @nullable */
+  owner?: string | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  division?: string | null;
+  /** @nullable */
+  paymentArrangements?: string | null;
+  /** @nullable */
+  primaryContactId?: number | null;
+  /** @nullable */
+  primaryContactName?: string | null;
+  /** @nullable */
+  billingContactId?: number | null;
+  /** @nullable */
+  billingNotes?: string | null;
+  /** @nullable */
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  events?: Event[];
+}
+
+export interface MasterEventInput {
+  masterEventName: string;
+  masterEventType?: string;
+  marketType?: string;
+  referralType?: string;
+  groupMasterAccount?: string;
+  owner?: string;
+  salesperson?: string;
+  division?: string;
+  paymentArrangements?: string;
+  primaryContactId?: number;
+  billingContactId?: number;
+  billingNotes?: string;
+  createdBy?: string;
+}
+
+export interface CommunicationHistory {
+  id: number;
+  relatedType: string;
+  relatedId: number;
+  /** @nullable */
+  subject?: string | null;
+  /** @nullable */
+  type?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  result?: string | null;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  contactId?: number | null;
+  /** @nullable */
+  contactName?: string | null;
+  /** @nullable */
+  content?: string | null;
+  /** @nullable */
+  internal?: boolean | null;
+  /** @nullable */
+  attachments?: string | null;
+  createdAt: string;
+  /** @nullable */
+  createdBy?: string | null;
+}
+
+export interface CommunicationHistoryInput {
+  relatedType: string;
+  relatedId: number;
+  subject?: string;
+  type?: string;
+  category?: string;
+  result?: string;
+  date?: string;
+  contactId?: number;
+  content?: string;
+  internal?: boolean;
+  attachments?: string;
+  createdBy?: string;
+}
+
+export interface SettingsItem {
+  id: number;
+  name?: string;
+  [key: string]: unknown;
+ }
+
+export interface SettingsItemInput {
+  name?: string;
+  [key: string]: unknown;
+ }
+
+export interface LifecycleColor {
+  id: number;
+  status: string;
+  color: string;
+  textColor: string;
+}
+
 export type ListEventsParams = {
 status?: string;
 site?: string;
@@ -1140,6 +1296,15 @@ eventId?: number;
 export type ListReportsParams = {
 reportType?: string;
 search?: string;
+};
+
+export type RunReportPostBody = {
+  page?: number;
+};
+
+export type ListCommunicationHistoryParams = {
+relatedType?: string;
+relatedId?: number;
 };
 
 export type GetCalendarEventsParams = {

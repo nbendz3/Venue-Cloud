@@ -22,6 +22,9 @@ import revenueCentersRouter from "./revenueCenters";
 import paymentsRouter from "./payments";
 import financialsRouter from "./financials";
 import functionFinancialsRouter from "./functionFinancials";
+import settingsRouter from "./settings";
+import masterEventsRouter from "./masterEvents";
+import communicationHistoryRouter from "./communicationHistory";
 
 const router: IRouter = Router();
 
@@ -44,9 +47,11 @@ router.use("/tasks", tasksRouter);
 router.use("/notes", notesRouter);
 router.use("/appointments", appointmentsRouter);
 router.use("/guest-room-blocks", guestRoomBlocksRouter);
-router.use("/locations", locationsRouter);
 router.use("/reports", reportsRouter);
 router.use("/calendar", calendarRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/settings", settingsRouter);
+router.use("/master-events", masterEventsRouter);
+router.use("/communication-history", communicationHistoryRouter);
 
 export default router;

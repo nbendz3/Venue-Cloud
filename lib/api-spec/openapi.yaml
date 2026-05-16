@@ -1050,11 +1050,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/Report"
 
+  /reports/types:
+    get:
+      operationId: listReportTypes
+      tags: [reports]
+      summary: List report types
+      responses:
+        "200":
+          description: Report types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportType"
+
+  /reports/columns/{reportType}:
+    get:
+      operationId: getReportColumns
+      tags: [reports]
+      summary: Get available columns for a report type
+      parameters:
+        - name: reportType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Column groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportColumnGroup"
+
   /reports/{id}/run:
     get:
       operationId: runReport
       tags: [reports]
-      summary: Run a report
+      summary: Run a report (GET)
       parameters:
         - name: id
           in: path
@@ -1068,6 +1104,397 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReportResult"
+    post:
+      operationId: runReportPost
+      tags: [reports]
+      summary: Run a report (POST, supports pagination)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                page:
+                  type: integer
+      responses:
+        "200":
+          description: Report results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResult"
+
+  /reports/{id}:
+    get:
+      operationId: getReport
+      tags: [reports]
+      summary: Get a single report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+    put:
+      operationId: updateReport
+      tags: [reports]
+      summary: Update a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+    delete:
+      operationId: deleteReport
+      tags: [reports]
+      summary: Delete a report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /reports/schedules/all:
+    get:
+      operationId: listReportSchedules
+      tags: [reports]
+      summary: List all report schedules
+      responses:
+        "200":
+          description: Schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportSchedule"
+
+  /reports/schedules:
+    post:
+      operationId: createReportSchedule
+      tags: [reports]
+      summary: Create a report schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportScheduleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportSchedule"
+
+  /reports/schedules/{id}:
+    delete:
+      operationId: deleteReportSchedule
+      tags: [reports]
+      summary: Delete a schedule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Master Events
+  /master-events:
+    get:
+      operationId: listMasterEvents
+      tags: [masterEvents]
+      summary: List master events
+      responses:
+        "200":
+          description: Master events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MasterEvent"
+    post:
+      operationId: createMasterEvent
+      tags: [masterEvents]
+      summary: Create a master event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MasterEventInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterEvent"
+
+  /master-events/{id}:
+    get:
+      operationId: getMasterEvent
+      tags: [masterEvents]
+      summary: Get a master event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Master event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterEvent"
+    put:
+      operationId: updateMasterEvent
+      tags: [masterEvents]
+      summary: Update a master event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MasterEventInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MasterEvent"
+    delete:
+      operationId: deleteMasterEvent
+      tags: [masterEvents]
+      summary: Delete a master event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Communication History
+  /communication-history:
+    get:
+      operationId: listCommunicationHistory
+      tags: [communicationHistory]
+      summary: List communication history
+      parameters:
+        - name: relatedType
+          in: query
+          schema:
+            type: string
+        - name: relatedId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Communication history entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunicationHistory"
+    post:
+      operationId: createCommunicationHistory
+      tags: [communicationHistory]
+      summary: Log a communication entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunicationHistoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationHistory"
+
+  /communication-history/{id}:
+    put:
+      operationId: updateCommunicationHistory
+      tags: [communicationHistory]
+      summary: Update a communication entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommunicationHistoryInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunicationHistory"
+    delete:
+      operationId: deleteCommunicationHistory
+      tags: [communicationHistory]
+      summary: Delete a communication entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Settings (generic lookup tables)
+  /settings/{table}:
+    get:
+      operationId: listSettingsTable
+      tags: [settings]
+      summary: List all items in a settings table
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Settings items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SettingsItem"
+    post:
+      operationId: createSettingsItem
+      tags: [settings]
+      summary: Create a settings item
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsItem"
+
+  /settings/{table}/{id}:
+    put:
+      operationId: updateSettingsItem
+      tags: [settings]
+      summary: Update a settings item
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsItemInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsItem"
+    delete:
+      operationId: deleteSettingsItem
+      tags: [settings]
+      summary: Delete a settings item
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   # Calendar
   /calendar/events:
@@ -3461,3 +3888,245 @@ components:
         - totals
         - paymentsReceived
         - balanceDue
+
+    ReportType:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required: [id, name]
+
+    ReportColumnGroup:
+      type: object
+      properties:
+        group:
+          type: string
+        fields:
+          type: array
+          items:
+            type: string
+      required: [group, fields]
+
+    ReportSchedule:
+      type: object
+      properties:
+        id:
+          type: integer
+        reportId:
+          type: integer
+        frequency:
+          type: string
+        dayOfWeek:
+          type: ["string", "null"]
+        dayOfMonth:
+          type: ["integer", "null"]
+        runTime:
+          type: ["string", "null"]
+        outputFormat:
+          type: string
+        recipients:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+        createdBy:
+          type: ["string", "null"]
+      required: [id, reportId, frequency, outputFormat]
+
+    ReportScheduleInput:
+      type: object
+      properties:
+        reportId:
+          type: integer
+        frequency:
+          type: string
+        dayOfWeek:
+          type: string
+        dayOfMonth:
+          type: integer
+        runTime:
+          type: string
+        outputFormat:
+          type: string
+        recipients:
+          type: string
+        isActive:
+          type: boolean
+        createdBy:
+          type: string
+      required: [reportId, frequency, outputFormat]
+
+    MasterEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        masterEventName:
+          type: string
+        masterEventNumber:
+          type: ["string", "null"]
+        masterEventType:
+          type: ["string", "null"]
+        marketType:
+          type: ["string", "null"]
+        referralType:
+          type: ["string", "null"]
+        groupMasterAccount:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        division:
+          type: ["string", "null"]
+        paymentArrangements:
+          type: ["string", "null"]
+        primaryContactId:
+          type: ["integer", "null"]
+        primaryContactName:
+          type: ["string", "null"]
+        billingContactId:
+          type: ["integer", "null"]
+        billingNotes:
+          type: ["string", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+      required: [id, masterEventName, createdAt, updatedAt]
+
+    MasterEventInput:
+      type: object
+      properties:
+        masterEventName:
+          type: string
+        masterEventType:
+          type: string
+        marketType:
+          type: string
+        referralType:
+          type: string
+        groupMasterAccount:
+          type: string
+        owner:
+          type: string
+        salesperson:
+          type: string
+        division:
+          type: string
+        paymentArrangements:
+          type: string
+        primaryContactId:
+          type: integer
+        billingContactId:
+          type: integer
+        billingNotes:
+          type: string
+        createdBy:
+          type: string
+      required: [masterEventName]
+
+    CommunicationHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        subject:
+          type: ["string", "null"]
+        type:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        date:
+          type: ["string", "null"]
+        contactId:
+          type: ["integer", "null"]
+        contactName:
+          type: ["string", "null"]
+        content:
+          type: ["string", "null"]
+        internal:
+          type: ["boolean", "null"]
+        attachments:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        createdBy:
+          type: ["string", "null"]
+      required: [id, relatedType, relatedId, createdAt]
+
+    CommunicationHistoryInput:
+      type: object
+      properties:
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        subject:
+          type: string
+        type:
+          type: string
+        category:
+          type: string
+        result:
+          type: string
+        date:
+          type: string
+        contactId:
+          type: integer
+        content:
+          type: string
+        internal:
+          type: boolean
+        attachments:
+          type: string
+        createdBy:
+          type: string
+      required: [relatedType, relatedId]
+
+    SettingsItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required: [id]
+      additionalProperties: true
+
+    SettingsItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+      additionalProperties: true
+
+    LifecycleColor:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+        color:
+          type: string
+        textColor:
+          type: string
+      required: [id, status, color, textColor]

@@ -1,0 +1,607 @@
+=== REPLICATION ADDENDUM — PASS 4: FINAL GAPS ===
+
+Continue building the ReserveCloud replica. This pass documents all remaining unexplored functionality. Add everything below to the existing app.
+
+---
+
+## 1. COMMUNICATION HISTORY SYSTEM
+
+All three communication actions from an Event/Lead/Master Event detail page:
+
+### A. Log Activity — URL: /communication/logEventCall/:eventId
+Page title: "Log Activity — [Event Name]"
+Save buttons: Save | Save and Add Task | Save and Add Appointment | Cancel
+
+Section: Activity Details
+  - Owner (typeahead search, auto-fills current user)
+  - Contact (typeahead search)
+  - Related Business Type (dropdown: Event, Lead, Account, Contact, Master Event)
+  - Related Business Name (typeahead, filtered by type)
+  - Date (date picker, defaults today)
+  - Activity / Email (dropdown: Activity, Email)
+  - Category (dropdown: None + configurable options)
+  - Result (dropdown: None + configurable options)
+
+Section: Communication Content
+  - Subject (text input)
+  - Details (large textarea)
+
+### B. Generate Documents — URL: /communication/eventLetterGenerateStart/:eventId
+Page title: "Generate Documents"
+Buttons: Generate Documents | Done
+
+Section: Business
+  - Related Business Type (dropdown)
+  - Related Business Name (typeahead)
+  - Choose Filters:
+    - Filter by Functions (checkbox)
+    - Override Document Defaults (checkbox)
+    - Include Attachments (checkbox)
+
+Section: Choose Document Template
+  - Folder (tree: Infor Default Documents, All Enterprise Folders, The Pines Resort [sub-folders])
+  - Document Type filter (dropdown: All Document Types + types)
+  - File Format filter (dropdown: Document Template Default, PDF, DOCX)
+  - Table columns: [checkbox] Name | Description | Document Type | Folder | Separate Function Pages | Sort First By | Filtered By | Format
+  - Document types include: Contract, Event Order, Invoice, Proposal, Agreement, Miscellaneous
+  - 32 templates shown for this property
+  - Pagination controls
+
+### C. Compose Email (Send Event Email) — URL: /communication/composeEventEmail/:eventId
+Page title: "Compose Email"
+Buttons: Send Email | Cancel
+
+Section: Compose Email
+  - Contact (typeahead)
+  - Related Business Type (dropdown)
+  - Related Business Name (typeahead)
+  - Category (dropdown)
+  - Result (dropdown)
+
+Section: Email Content
+  - Choose Email Template (button — opens template selector)
+  - Insert Email Signature (button)
+  - To (dropdown, pre-populated from contact email)
+  - Additional To (typeahead)
+  - CC (typeahead)
+  - BCC (typeahead)
+  - Subject (text input)
+  - From (dropdown, shows user email with forwarding address)
+  - HTML Email / Text Email (tab toggle)
+  - Rich text editor body area
+
+Section: Attachments
+  - Generate Documents (button)
+  - Attach Files from Document Center (button)
+  - Attach Files from My Computer (button)
+  - Attach Files from Attachments (button)
+  - Attached files list
+
+Section: Request eSignature
+  - Request eSignature (checkbox — reveals eSignature sub-form)
+
+---
+
+## 2. TASK EDIT FORM — URL: /tasks/taskAdd or /tasks/taskEdit/:id
+
+Page title: "Edit Task"
+Save buttons: Save | Save and Add Task | Save and Log Activity | Save and Add Appointment | Cancel
+
+Section: Task Details
+  - Salesperson (typeahead)
+  - Business Type (dropdown: None, Event, Lead, Account, Contact, etc.)
+  - Related Business Name (typeahead)
+  - Category (dropdown: None + configured options)
+  - Task Name* (required text input)
+  - Description (large textarea, 32767 char limit)
+  - Task Date (date picker, defaults today)
+  - Priority (dropdown: None + High/Medium/Low)
+  - Status (dropdown: Open, Closed, In Progress, etc.)
+  - Result (dropdown: None + configured options)
+
+---
+
+## 3. APPOINTMENT EDIT FORM — URL: /appointments/appointmentAddEvent/:eventId
+
+Page title: "Appointments — Edit Appointment"
+Save buttons: Save | Save and Add Task | Save and Add Appointment | Save and Log Activity | Cancel
+
+Section: Appointment Details
+  - Salesperson (typeahead, auto-fills current user)
+  - Related Business Type (dropdown: Event, Lead, Account, Contact, etc.)
+  - Related Business Name (typeahead, pre-filled from context)
+  - Category (dropdown: None + configured options)
+  - Name (text input)
+  - Description (large textarea, 32767 char limit)
+  - Start Date (date picker, defaults today)
+  - Start Time (time input)
+  - End Time (time input)
+  - Result (dropdown: None + configured options)
+
+---
+
+## 4. MASTER EVENT DETAIL PAGE — URL: /events/masterEventDetails/:id
+
+Page title: "Master Event — [Name] — [Date] — [Number]"
+Header buttons: Edit Master Event | View Financial Details | … (More Actions)
+
+Breadcrumb link back to Master Event (purple header color, distinguished from Event which uses red)
+
+Sections (15 total):
+1. Master Event Details — Primary Contact, Primary Contact Account, Master Event Name, Group Master Account, Master Event Type, Market Type, Referral Type | Owner, Salesperson, Master Event Number, Division, Start Date, End Date
+2. Billing Details — Payment Arrangements, Billing Contact, Billing Notes
+3. Events table — toolbar: [New Event with Function] [New Event] [Mass Edit Selected Events] […More Actions]; columns: Actions(Edit), Event Name, Site, Start Date, Effective Attendance, Status, Primary Contact, Account Name
+4. Functions table (cross-event view) — toolbar: [Cancel Function]; columns: Actions(Copy|Edit|Service Menus(New)|Service Menus(Classic)), Event Name, Function, Function#, Site, Locations, Start Date, Start Time, End Time, Effective Attendance, Status, Primary Contact, Account Name, Has Services, Posted
+5. Guest Rooms Blocks — [New Event with Guest Rooms Block]; columns: Block Name, Start Date, Departure Date, Cutoff Date, Site, Status, Contracted, Blocked, Forecast, Pickup, #Rooms, Average Room Rate, Total, Contact
+6. Guest Rooms Bookings — columns: Block Name, Booking Date, Site, Status, Contracted, Blocked, Forecast, Pickup, #Rooms, Guest Room Types, Contact
+7. Contacts — [Add Contact]; shows roles (Primary Contact, None, etc.); columns: Contact, Contact Role, Work Phone, Home Phone, Mobile Phone, Email, Account Name, Information, Number, Membership
+8. Notes — [New Note]; columns: Notes, Date/Time, Salesperson, Internal
+9. Tasks — [New Task]; columns: Name, Priority, Description, Contact, Category, Result, Status, Salesperson, Date
+10. Appointments — [New Appointment]; columns: Name, Start Date/Time, End Date/Time, Contact, Category, Result, Salesperson
+11. Communication History — [Log Activity] [Generate Documents] [Send Email]; columns: Actions(Edit|Delete), Content, Event Name, Function, Has Attachments, Subject, Contact, Type, Owner, Date, Email Status, eSignature Status, Category, Result
+12. Master Event Attachments — [Attach Files]; columns: Name, Description, Size, Last Updated, Last Updated By
+13. Event Attachments (read-only view of all child event attachments)
+14. Function Attachments (read-only view of all child function attachments)
+15. Event Leads — columns: Lead Name, Event Name, Conversion Date, Lead Status, Contact, Last Activity, Next Action, Salesperson
+16. Last Updated — Last Updated Date/Time, Last Updated By, Created Date/Time, Created By, [View Change History]
+
+---
+
+## 5. EDIT FORMS — ALL MODULES
+
+### Event Edit — /events/eventEdit/:id
+Section: Event Details
+  - Primary Contact* (typeahead)
+  - Event Name* (text)
+  - Group Master Account (text, read-only or editable)
+  - Event Type* (dropdown)
+  - Event Category* (dropdown)
+  - Market Type* (dropdown)
+  - Referral Type* (dropdown)
+  - Estimated Attendance* (number)
+  - Owner* (typeahead)
+  - Salesperson* (typeahead)
+  - Event Number (read-only)
+  - Event Lifecycle Model* (dropdown)
+  - PMS Group Number (read-only, from PMS integration)
+  - Event Status (read-only, changed via lifecycle)
+  - Site* (dropdown)
+  - Event Note (text)
+
+Section: Billing Details
+  - Payment Arrangements (dropdown: None + configured options)
+  - Billing Contact (typeahead)
+  - Tax Exempt (checkbox)
+  - Billing Notes (textarea, 256 char)
+
+### Lead Edit — /leads/leadEdit/:id
+Save buttons: Save | Save and New Event Lead | Save and New Function | Cancel
+
+Section: Lead Details
+  - Primary Contact (typeahead)
+  - Lead Name* (text)
+  - Division* (dropdown)
+  - Site* (dropdown)
+  - Lead Type (dropdown: Internet Inquiry, Phone, Walk-in, Referral, etc.)
+  - Budget (currency)
+  - Probability (% number)
+  - Lead Status (dropdown: New, Inquiry, Proposal, Tentative, Definite, Cancelled, Closed)
+  - Decision Date (date picker)
+  - Owner* (typeahead)
+  - Salesperson* (typeahead)
+  - Referral Type (dropdown)
+  - Function Type (dropdown)
+  - Location (dropdown: venue locations)
+  - Estimated Attendance (number)
+  - Description (textarea, 2048 char)
+
+Section: Billing Details
+  - Billing Contact (typeahead)
+  - Billing Notes (textarea, 256 char)
+  - Payment Arrangements (dropdown)
+
+### Account Edit — /accounts/accountEdit/:id
+Section: Account Details
+  - Name* (text)
+  - Account Number (text)
+  - Parent Account (typeahead)
+  - Description (textarea, 256 char)
+  - Owner* (typeahead)
+  - Phone (text)
+  - Fax (text)
+  - Website (text)
+
+Section: Address Details
+  - Mailing Address Line 1, Line 2, City, State/Province, Postal Code, Country
+
+Section: Billing Details
+  - Tax Exempt (checkbox)
+  - Tax Exempt Exp Date (date picker)
+  - Tax Exempt Number (text)
+
+### Contact Edit — /contacts/contactEdit/:id
+Section: Contact Details
+  - Salutation (dropdown: None, Mr., Mrs., Ms., Dr., etc.)
+  - First Name (text)
+  - Last Name* (text)
+  - Account (typeahead)
+  - Title (text)
+  - Email (email input)
+  - Work Phone (text)
+  - Mobile Phone (text)
+  - Home Phone (text)
+  - Fax (text)
+  - Owner* (typeahead)
+  - Site* (dropdown)
+  - Active (checkbox, default true)
+  - Department (text)
+  - Contact Type (dropdown: None + configured types)
+  - Preferences (dropdown)
+  - Birthday (date picker)
+  - Anniversary (date picker)
+  - Information (textarea, 2048 char)
+  - Description (textarea, 1024 char)
+
+Section: Address Details
+  - Use Account Address for Mailing (checkbox)
+  - Mailing Address Line 1, Line 2, City, State/Province, Postal Code, Country
+  - Use Account Address for Other (checkbox)
+  - Other Address Line 1, Line 2, City, State/Province, Postal Code, Country
+
+---
+
+## 6. TASKS MODULE — FULL DETAILS (/tasks/tracersMain)
+
+Page has three sub-areas at top:
+1. **Folder Management**: Manage Folder, New Folder — folder tree (Show All, The Pines Resort)
+2. **View Management**: Manage View, New View, Copy View — List View dropdown (Default Tasks View, custom views)
+3. **Task List toolbar**: New | Delete Selected | Close Selected | Reassign Selected Tasks | [List View Search input]
+
+Task list table columns: [checkbox] | Actions | Name | Priority | Description | Contact | Category | Result | Status | Salesperson | Date
+
+---
+
+## 7. REPORTS MODULE — FULL DETAILS (/reportTemplates/reportsMain)
+
+Main toolbar (3 buttons): **New Report** | **View Scheduled Report Jobs** | **View Report Job Results**
+
+Folder area:
+  - Manage Folder, New Folder buttons
+  - Folder tree: Infor Default Reports, All Enterprise Folders → The Pines Resort → [Nicks Folder, Dining, Events, Financial, Marketing, Public Events, Wedding Reports]
+
+Report list filters: Report Type dropdown | Search String | Limit to Reports I own (checkbox)
+
+Report list columns: Actions | Report Name | Description | Report Type | Folder | Created By | Created Date/Time
+
+### Scheduled Report Jobs (/reportJobs/reportJobsMain)
+Toolbar: View Reports | View Report Job Results | **New Scheduled Report Job**
+List columns: Actions(Edit|Copy|Delete|Run Now) | Report Job Name | Report Name | Frequency | Next Run Time | Last Run Time | Last Status | Owner | Active
+
+### New Scheduled Report Job (/reportJobs/reportJobNew)
+Section: Report Job Details
+  - Name (text)
+  - Scheduled Start Time (time input)
+  - Run Daily (checkbox)
+  - Run Weekly (checkbox)
+  - Run Monthly (checkbox)
+  - Owner (typeahead)
+  - Active (checkbox)
+
+Section: Weekly Details (shown when Run Weekly checked)
+  - Day checkboxes: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+
+Section: Monthly Details (shown when Run Monthly checked)
+  - On day [N] of every month
+  - On the [First/Second/Third/Fourth/Last] [Monday/Tuesday/...] of every month
+  - On the last day of every month
+
+Section: Selected Report
+  - Folder tree (same as reports main)
+  - Report Name (select from folder)
+  - Report table: Report Name | Description | Report Type | [radio select]
+
+Section: Report Parameters
+  - Report Date Range (dropdown: Current Month, Last Month, Current Quarter, etc.)
+  - Export Format (dropdown: PDF, Excel, CSV, Word)
+
+Section: Email Details
+  - Email Link to Report Job Results checkbox + email address fields
+
+Section: Google Drive
+  - Upload to Google Drive checkbox + configuration
+
+Section: SFTP Server
+  - Upload to SFTP Server checkbox + connection details
+
+---
+
+## 8. SERVICE MENUS SETTINGS — /settings/manageServicePackages
+
+Master template library management.
+Filters: Division | Site | Include Inactive (checkbox) | Search String | Category | Site Visibility Group
+Toolbar: New | Done
+Table columns: Actions(Copy|Edit|Delete) | Name (link to detail) | Menu Number | Category | Site Visibility Group | Pricing Type | Package Price | Package Cost | Use Inclusive Pricing | Defined in Master List | Active
+
+### Edit Service Menu — /settings/servicePackageEdit/:id
+
+Section: Service Menu Details
+  - Service Menu Name (text)
+  - Service Menu Number (text)
+  - Category (dropdown: 1=Wedding Menus, 2=Banquet Menus, 3=Beverage Menus, 4=Setup and Service Menus, 5=Amenities)
+  - Pricing Type (dropdown: A La Carte Pricing, Package Pricing - Monetary Amount Allocation, Package Pricing - Percentage Amount Allocation)
+  - Auto Calculate Quantity (checkbox)
+  - Number Required (number)
+  - Per Number of Guests (number)
+  - Minimum Quantity (number)
+  - Description (textarea, 1024 char)
+  - Photo (file upload)
+  - Active (checkbox)
+
+Section: Package Pricing Details (shown when Package Pricing type selected)
+  - Package Pricing (dropdown: Per Person, Per Event, Per Item, etc.)
+  - Package Price (currency)
+  - Package Cost (currency)
+  - Use Item Costs (checkbox)
+  - Use Inclusive Pricing (checkbox)
+  - Revenue center allocation table:
+    | Revenue Center | Price | Cost | Applied Rates |
+    (one row per revenue center: Food, Alcoholic Beverage, Non-Alcoholic Beverage, Service Fees, Guest Rooms, Room Rental, Labor, Equipment, Rentals, Other Taxable, Other No Taxes, Cover Charge, Outside Services)
+    Each row has: Price input, Cost input, Applied Rates dropdown (e.g. Gratuity and Sales Tax, No Taxes or Fees, etc.)
+
+Section: Available Service Types / Selected Service Types (dual-list selector)
+  - Left: Available Service Types (80+ named service types)
+  - Right: Selected Service Types
+  - Move buttons between lists
+
+---
+
+## 9. SERVICE ITEMS SETTINGS — /settings/manageServiceItems
+
+Filters: Division | Site | Revenue Center | Item Is Custom (Yes/No/All) | Category | Category Sub Option | Category II | Location Group | Search String
+Toolbar: New | Delete Selected | Done
+
+Table columns: Actions(Copy|Edit|Related Items|Recipe|Delete) | [person icon] [photo icon] | Name | Description | Notes | Notes Internal | A La Carte Price | Add-On Price | Cost | Revenue Center | Applied Rates | Category | Category Sub Option | Category II | Item Number | Has Photo | Custom | Defined in Master List
+
+---
+
+## 10. GUEST ROOMS CONTROL — FULL DETAILS (/guestRooms/guestRoomsBook)
+
+Page title: "Guest Rooms Control — Calendar"
+
+Toolbar items (left panel):
+  - Hide Toolbar (Alt+T)
+  - New Event (button)
+  - New Master Event (button)
+  - Batch Generate Documents (button)
+  - Show Function Space (toggle switch)
+  - Show Events (toggle switch)
+  - Show Dependencies (toggle switch)
+  - Event Status filter (dropdown)
+  - Event Types filter (dropdown)
+  - Function Location Groups filter (dropdown)
+  - Function Locations filter (dropdown)
+  - Function Location Types filter (dropdown)
+  - Site Types filter (dropdown)
+  - [List Views] (link)
+  - [Availability Options] (link)
+  - [Guest Room Filters] (link)
+  - [Usage Options] (link)
+  - [Manage Important Dates] (link)
+  - [Calendar Settings] (link)
+
+Calendar header:
+  - Date input + calendar picker
+  - Site dropdown (The Pines Resort)
+  - Event Calendar Legend toggle
+  - Fullscreen button (⤢)
+  - View buttons: 3 Days | 1 Week | 2 Weeks | 4 Weeks | [N days input]
+  - Navigation: ‹ prev | Today | next › | « fast back | fast forward »
+  - Start Time / End Time toggle buttons
+
+Grid rows (Resource column):
+**Inventory Summary rows:**
+  - Remaining Inventory
+  - New Bookings
+  - Prospect Bookings
+  - Option Holds Bookings
+  - Tentative Bookings
+  - Definite Bookings (shows booking count per day)
+  - Total Inventory
+  - Transient Protected Inventory
+  - Minimum Available Rates: USD ($)
+
+**Event block rows** (expandable, shows event name + avg rate):
+  - [Event Name ($avg_rate)] — expandable per room type
+
+**Room/Location rows** (30+ locations at The Pines Resort):
+  - Lakeview Room (both sides)
+  - Lakeview A
+  - Lakeview B
+  - Gazebo Deck
+  - Lakeshore Deck
+  - Suite Deck
+  - Boathouse
+  - Cedar
+  - Pahoma
+  - Fireside Room
+  - Tennis Courts
+  - Park
+  - Main Parking lot
+  - Ducey's on the Lake
+  - Bar & Grill
+  - Bar & Grill Patio
+  - Upper parking lot
+  - Gazebo Lawn
+  - Private
+  - Wedding Rehearsal ~ TBD
+  - Property Tour
+  - Chalet
+  - Suite
+  - No Space
+  - Tree Deck
+  - The Pines Bar
+  - Glice Rink
+  - Wavy Deck
+  (+ more)
+
+---
+
+## 11. SETTINGS — COMPLETE SECTION MAP
+
+All top-level accordion sections in Settings (/settings/settingsMain):
+
+### Enterprise
+- Enterprise Hierarchy: Edit Enterprise, Manage Divisions, Manage Regions, Manage Business Units, Manage Sites, Manage Locations, Manage "To Be Announced" Location
+- Off-Premise Venues: Manage Off-Premise Venues
+- Visibility Groups: Manage Site Visibility Groups
+- Enterprise Field Options: Manage Site Types, Manage Location Types, Manage Location Groups, Manage Country Codes
+- Custom Fields & Page Layout: Manage Site Custom Fields, Manage Site Page Layout
+- Foreign Language & Currency: Manage Supported Languages, Manage Supported Currencies, Manage Locales, Manage Exchange Rates, Translate System Options
+- Imports: Import Enterprise Options, Import Location Records, Import Off-Premise Venues, Import Site Records
+- Infor Licensing, Access & Administration: Administer Enterprise Configuration Options, Administer Enterprise Feature Flags, Administer Site Access, Administer Site Configuration Options
+
+### Activities, Tasks and Appointments
+### Accounts
+### Contacts
+### Correspondence
+### Event Leads
+### Events (previously documented)
+### Event Financials (previously documented)
+### Event Services (previously documented)
+
+### Event Guest Lists
+- Guest Types: Manage Guest Types
+- Guest List Booking Field Options: Cancellation Reasons
+- Self-Service Portal: Manage Guest List Self-Service Portal Site Activation, Manage Guest List Self-Service Portal Page Layout
+- Guest Portal Plugin: Manage Guest List Guest Portal Site Activation, Manage Guest List Guest Portal Page Layout
+- Custom Fields & Page Layout: Manage Guest List Booking Custom Fields, Manage Guest List Booking Page Layout
+- Imports: Import Field Options
+- Gateway: Manage Guest List Booking Gateway Put Requests, Manage Guest List Booking Update Gateway Put Requests
+- Guest List Credit Card Payments: Manage Credit Card Guarantee and Payment Settings
+
+### Event Room Diagramming
+### Guest Rooms Control
+### Interfaces
+### Marketing
+### Member Leads
+### Memberships
+### Personnel
+### Reservations
+### Reservation Financials
+### Reservation Floor Management
+### Users
+### Workflow
+
+---
+
+## 12. REVENUE CENTERS — COMPLETE LIST (/settings/manageRevenueCenters)
+
+Table columns: Actions(Edit) | Name | Field Code | Category | Active | Can Be Tax Exempt | Use For Check Average 1 | Use For Check Average 2 | Include in Pace Reports | Revenue Type for Pace Reports
+
+13 Revenue Centers for The Pines Resort:
+1. Food — Category: Food
+2. Alcoholic Beverage — Category: Beverage
+3. Non-Alcoholic Beverage — Category: Beverage
+4. Service Fees — Category: Setup and Service
+5. Guest Rooms — Category: Guest Rooms
+6. Room Rental — Category: Room Rental
+7. Labor — Category: Setup and Service
+8. Equipment — Category: Setup and Service
+9. Rentals — Category: Setup and Service
+10. Other (Taxable) — Category: Setup and Service
+11. Other (No Taxes or Fees) — Category: Setup and Service
+12. Cover Charge — Category: Cover Charge
+13. Outside Services — Category: Setup and Service
+
+---
+
+## 13. DOCUMENT MANAGEMENT SYSTEM
+
+32 document templates organized by type:
+**Document Types**: Contract, Event Order, Invoice, Proposal, Agreement, Miscellaneous
+
+Templates stored in folders: Tracy, Banquets Beo Folder, Bus Tours, Wedding, Event Document Templates, Infor Default Documents
+
+Template columns: Name | Description | Document Type | Folder | Separate Function Pages | Sort First By | Filtered By | Format (.docx or .pdf)
+
+Templates can be filtered by: Document Type dropdown, File Format dropdown, Folder tree
+
+---
+
+## 14. REPORT FOLDER HIERARCHY
+
+Full folder tree visible in Reports section:
+- Infor Default Reports (read-only Infor templates)
+- All Enterprise Folders
+  - The Pines Resort [site level]
+    - The Pines Resort [division level]
+      - The Pines Resort [user folder]
+        - Nicks Folder (user personal folder)
+      - The Pines Resort [shared]
+        - Dining
+        - Events
+        - Financial
+        - Marketing
+        - Public Events
+        - Wedding Reports
+
+---
+
+## 15. COMMUNICATION HISTORY TABLE COLUMNS
+
+When viewing Communication History on any Event/Lead/Master Event detail page:
+Actions | Content (message preview) | Event-Name | Function | Has Attachments (icon) | Subject | Contact | Type (Activity / Email / Document) | Owner | Date | Email Status | eSignature Status | Category | Result
+
+Communication History actions: Edit | Delete
+
+---
+
+## 16. BOOKMARKS BAR (RECENT RECORDS)
+
+The horizontal bar below the top navigation shows recently visited records as colored bookmark tabs:
+- Purple bookmark = Master Event
+- Red bookmark = Event  
+- Orange bookmark = Function
+- Blue/teal bookmark = Contact
+- Purple bookmark = Account
+- Yellow/gold bookmark = Lead
+Up to ~15 recent records shown, scrollable, each has icon + short name
+
+---
+
+## 17. GLOBAL SEARCH & HELP
+
+Top-right toolbar icons:
+- Search icon (🔍) — Global Search (Alt+S keyboard shortcut) — searches across all modules
+- Help icon (?) — Help and Training → links to /web/university/browseUniversityDocuments
+- More options (⋯) — additional top-level actions
+- Chat/messenger icon (💬) — integrated messaging system
+
+---
+
+## 18. OVERALL SETTINGS ARCHITECTURE
+
+Settings page is a single-page accordion with 20+ top-level sections. Each section expands to show sub-categories and management links. Pattern for each setting type:
+- Manage [Item] = CRUD list page with New/Edit/Delete/Copy/Reorder
+- Import [Item] = CSV/Excel import wizard
+- Manage [Item] Gateway = API/integration management
+- Manage [Item] Custom Fields = add custom fields to that record type
+- Manage [Item] Page Layout = control which fields appear and in what order
+
+---
+
+## REPLIT BUILD INSTRUCTIONS — PRIORITY ORDER
+
+Given everything now documented, implement the Replit app in this priority:
+
+**Phase 1 (Core):** Events calendar, Event CRUD, Function CRUD, BEO/Service Menus (3-level), Event Financials, Leads, Accounts, Contacts
+
+**Phase 2 (Communication):** Log Activity, Generate Documents, Send Email, Notes, Tasks, Appointments
+
+**Phase 3 (Reports):** Report builder UI (column selector, filters, sorts, groupings, calculations), Report list, Scheduled jobs
+
+**Phase 4 (Settings Admin):** Revenue Centers, Service Items, Service Menus template library, Event lifecycle, Locations, Users
+
+**Phase 5 (Advanced):** Master Events, Guest Rooms Control calendar, Document generation, eSignature workflow
+
+**Phase 6 (Remaining):** Guest Lists, Room Diagramming, Reservations, Workflow rules, Integrations/Gateway

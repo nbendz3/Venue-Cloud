@@ -1,0 +1,466 @@
+=== REPLICATION ADDENDUM — PASS 5: DEEP DIVE ON HIERARCHY, BEO BUILDER, AND REPORTS ===
+
+This pass documents the precise mechanics of the three-level hierarchy, the complete BEO/menu building workflow, and the full custom report builder workflow.
+
+---
+
+## 1. THREE-LEVEL HIERARCHY: MASTER EVENT → EVENT → FUNCTION
+
+### Conceptual Relationships
+- One MASTER EVENT can contain many EVENTS (across multiple sites/dates)
+- One EVENT contains many FUNCTIONS (sessions/meals happening within that event)
+- One FUNCTION contains many SERVICE MENUS (BEOs)
+- One SERVICE MENU contains many SERVICE TYPES
+- One SERVICE TYPE contains many SERVICE ITEMS
+
+### Visual Hierarchy Indicators
+- Master Event pages: PURPLE header bar/accent color
+- Event pages: RED header bar/accent color
+- Function pages: ORANGE header bar/accent color
+- Breadcrumbs always show the full chain: "Event: [Name] | Master: [Name]"
+
+### Navigation Between Layers
+Every Function detail and Function Services page shows a FUNCTION PICKER DROPDOWN at the top:
+  "Show Details for Function: [Function#] - [Function Name] on [Day Date] at [Time]-[Time] in [Location]"
+This allows switching between functions within the same event without going back.
+
+---
+
+## 2. MASTER EVENT EDIT FORM — /events/masterEventEdit/:id
+
+Save options: **Save | Save and New Event with Function | Cancel**
+
+Section: Master Event Details
+  - Primary Contact* (typeahead)
+  - Master Event Name* (text)
+  - Group Master Account (text)
+  - Master Event Type (dropdown: None + configured types)
+  - Market Type (dropdown: None + configured types)
+  - Referral Type (dropdown: None + configured types)
+  - Owner* (typeahead)
+  - Salesperson* (typeahead)
+  - Master Event Number (read-only, auto-assigned)
+  - Division* (dropdown)
+
+Section: Billing Details
+  - Payment Arrangements (dropdown)
+  - Billing Contact (typeahead)
+  - Billing Notes (textarea)
+
+---
+
+## 3. FUNCTION EDIT FORM — /events/functionEdit/:id
+
+Save options: **Save | Save and New Function | Save and Copy Function | Save and Add Services | Cancel**
+
+Section: Function Details
+  - Function Type* (dropdown: Dinner, Breakfast, Brunch, Ceremony, Reception, Meeting, etc.)
+  - Function Date* (date picker)
+  - Location* (dropdown: venue locations)
+  - Start Time* (time input, 12h format)
+  - End Time* (time input)
+  - Setup Minutes* (number)
+  - Teardown Minutes* (number)
+  - Setup Style (dropdown: None + Classroom, Theater, Banquet Rounds, U-Shape, etc.)
+  - Room Rental* (currency)
+  - Auto Update Attendance (checkbox — auto-syncs attendance from event)
+  - Estimated Attendance* (number)
+  - Guaranteed Attendance (number)
+  - Set (text — number of place settings)
+  - Owner* (typeahead)
+  - Function Number (read-only, auto-assigned: EventNumber-FunctionIndex)
+
+---
+
+## 4. FUNCTION DETAIL PAGE — /events/functionDetails/:id
+
+Page title: "Function — [FunctionName]: [EventName] - [Date] - [FunctionNumber] - [Location]"
+Breadcrumbs: Event link | Master Event link
+
+Sub-header: **Show Details for Function** dropdown (switches between functions in same event)
+
+Main toolbar: **Edit Function | View Financial Details | … (More Actions)**
+
+More Actions (…) menu contains:
+- Cancel Function
+- Copy Function
+- [other contextual actions]
+
+Sections (10 total):
+1. **Function Details** — all function fields (read-only display): Function Type, Function Date, Location, Start Time, End Time, Setup Minutes, Teardown Minutes, Setup Style, Room Rental, Auto Update Attendance, Estimated Attendance, Guaranteed Attendance, Set, Owner, Function Number
+
+2. **Personnel** — Personnel Role dropdown (Banquet Captain, Chef, Bartender, etc.) + Add Personnel for Role button; table: Actions | Name | Personnel Role | Phone | Mobile Phone | Fax Number | Email
+
+3. **Function Timeline** — [Add Timeline Items] [Edit Timeline Items] [Copy Timeline Items]; table: Actions | Start Date | Start Time | Name | Description
+
+4. **Services** — [Service Menus (New)] [Service Menus (Classic)] buttons (link to BEO builder)
+
+5. **Notes** — [New Note]; table: Actions | Notes | Date/Time | Salesperson | Internal
+
+6. **Tasks** — [New Task]; table: Actions | Name | Priority | Description | Contact | Category | Result | Status | Salesperson | Date
+
+7. **Appointments** — [New Appointment]; table: Actions | Name | Start Date/Time | End Date/Time | Contact | Category | Result | Salesperson
+
+8. **Communication History** (at function level):
+   Primary buttons: [Log Activity] [Generate Function Document] [Send Function Email]
+   Secondary buttons: [Generate Event Document] [Send Event Email] [Generate Master Event Document] [Send Master Event Email]
+   Table columns: Actions(Edit|Delete) | Content | Has Attachments | Subject | Contact | Type | Owner | Date | Email Status | eSignature Status | Category | Result
+
+9. **Function Booking Details** — [Edit Booking Details]; shows: Guest Rooms Block Indicator, Booking Details Information (custom fields/notes tied to the function booking)
+
+10. **Attachments** — [Attach Files]; table: Actions | Name | Description | Size | Last Updated | Last Updated By
+
+11. **Last Updated** — Last Updated Date/Time, By, Created Date/Time, By; [View Change History]
+
+---
+
+## 5. FUNCTION SERVICES / BEO BUILDER — /events/eventServicesDetails/:functionId
+
+Page title: "Function Services — [FunctionName]: [EventName] - [Date] - [FunctionNumber] - [Location]"
+Breadcrumbs: Event | Master Event
+
+Sub-header: **Show Details for Function** dropdown (same function picker as Function detail)
+
+### Page-Level Toolbar
+- **[Add Menu]** — opens Add Menu dialog (choose from template library or create blank)
+- **[… More Actions]** dropdown:
+  - Reorder Menus
+  - Copy Services (copy all menus from another function)
+  - View Financial Details
+  - View Function Details
+  - **View Daily Menu Mix** (special view: shows all items across all menus in a single flat list)
+
+### Menu Section Structure (one per menu on the function)
+Each menu is a colored card (orange header = event color):
+
+**Menu Header Display Fields:**
+- Function Menu Name
+- Pricing Type
+- Menu Quantity (auto-calculated: Number Required × Per Number of Guests × Function Attendance)
+- Menu Total Charges ($)
+- Menu Total Cost ($)
+
+**Menu Header Buttons:**
+- [Edit Menu] — opens the Function Menu edit form (see below)
+- [… More Actions]:
+  - Add New Menu (adds another blank menu to this function)
+  - Delete Menu
+  - **Add Service Types** (adds a service type section to this menu)
+  - Reorder Service Types / Items
+
+### Service Type Section Structure (one per service type in the menu)
+Each service type is a sub-section within a menu, indicated by a blue accent line and the service type name:
+
+**Service Type Header:**
+- Service type name (e.g., "Buffet", "Food & Bev", "Setup and Service")
+- Collapse/expand toggle (^ / v arrow)
+
+**Service Type Sub-toolbar:**
+- [Add Custom Items] — opens item selector
+- [… More Actions]:
+  - Delete Service Type
+  - **Add Items from Menu** (pick from this function's other menus)
+  - **Add Items from Master List** (pick from the global service item library)
+  - **View/Add Related Service Items** (add related/complementary items)
+  - Reorder Service Types / Items
+
+**Service Type Summary:**
+- Service Type Total Charges: $X.XX
+- Service Type Total Cost: $X.XX
+- Maximum # Selections: (Unlimited or specific number)
+
+**[Delete Selected Items]** button (bulk delete)
+
+### Service Item Table (within each service type)
+Default view columns:
+[checkbox] | Actions (Edit Menu | Delete) | [dietary icon] | Item | Notes | Notes Internal | Quantity | A La Carte Price | Add-On Price | # Hours | Total | Revenue Center | Applied Rates | Category | Category Sub Option | Category II
+
+### "New Service Type" placeholder
+When a new service type is added but not yet configured, it appears as a collapsed row with a ∨ arrow labeled "New Service Type" and a "Service Type Fields" expandable section.
+
+---
+
+## 6. FUNCTION MENU EDIT FORM — /events/eventPackageEditFromServices/:functionId/:menuId
+
+Page title: "Function Menu — [FunctionName]: [EventName] - [Date] - [FunctionNumber] - [Location]"
+
+Save options: **Save | Cancel**
+
+### Menu Header Section (named after the menu, e.g., "Custom Menu")
+
+Primary fields:
+- Function Menu Name (text input)
+- Pricing Type (dropdown: A La Carte Pricing | Package Pricing - Monetary Amount Allocation | Package Pricing - Percentage Amount Allocation)
+- Auto Calculate Quantity (checkbox)
+- Number Required (number input — numerator)
+- Per Number of Guests (number input — denominator)
+- Menu Quantity (read-only calculated field — shows result)
+
+**"More Menu Fields"** expandable section reveals:
+- Use Function Time Range (checkbox — use the function's own start/end times)
+- Start Time (time input — if not using function time)
+- End Time (time input)
+- Menu Location (text — where this menu is served)
+- Description (textarea)
+- Menu Notes (textarea)
+- Mark Notes Internal (checkbox)
+
+**Package Pricing Details** section (shown only when Pricing Type = Package):
+- Package Pricing dropdown (Per Person, Per Event, Per Table, etc.)
+- Package Price (currency)
+- Package Cost (currency)
+- Use Item Costs (checkbox)
+- Use Inclusive Pricing (checkbox)
+- Revenue center price/cost allocation table (one row per revenue center)
+
+### Item Edit Controls
+- **[Show All Item Details]** — expands all items to show all fields
+- **[Hide All Item Details]** — collapses all items to compact view
+
+### Service Type Block (one per service type in this menu)
+
+**Service Type Header:** Service type name (e.g., "Buffet")
+**[Service Type Fields]** expandable section reveals:
+- Service Type (text — the type name)
+- Use Function Time Range (checkbox)
+- Start Time / End Time (if not using function time)
+- Service Location (text)
+- Description (textarea)
+- Service Notes (textarea)
+- Mark Notes Internal (checkbox)
+
+### Service Item Row (one per item in the service type)
+
+**Compact view columns:**
+Show Details (checkbox toggle) | [dietary icon] | Service Item Name (textarea) | Description (textarea) | Notes (textarea) | Notes Internal (checkbox) | Quantity (number) | Auto Quantity (checkbox) | A La Carte Price (currency) | Add-On Price (currency)
+
+**Expanded view (when "Show Details" checkbox checked or "Show All Item Details" clicked):**
+Left side:
+- Cost (currency)
+- Use Ingredients Cost (checkbox)
+- Number Required (number or N/A)
+- Per Number of Guests (number or N/A)
+- Quantity Precision (dropdown: Whole, Half, Quarter, Tenth)
+- Category II (dropdown)
+- Mark Item Internal (checkbox)
+- Mark Quantity Internal (checkbox)
+- Use Function Time Range (checkbox)
+- Start Time (if not using function time)
+- End Time (if not using function time)
+
+Right side:
+- Charge Hourly (checkbox)
+- Auto Hours (shows calculated value or N/A)
+- # Hours (number or N/A)
+- Use Function Setup and Teardown Times (checkbox)
+- Setup Minutes (number or N/A)
+- Teardown Minutes (number or N/A)
+- Apply Overtime Hours Charges (N/A if not hourly)
+- Overtime Hours Price (currency or N/A)
+- Overtime Hours (number or N/A)
+- Hours Precision (dropdown: Whole, Half, Quarter)
+
+### New Service Type placeholder
+A collapsed row at the bottom of each menu labeled "New Service Type" with its own "Service Type Fields" expandable. Adding a service type here creates a new section.
+
+---
+
+## 7. CUSTOM REPORT BUILDER — COMPLETE WORKFLOW
+
+### Step 1: Select Report Type — /reportTemplates/reportNew
+
+Page: "Reports — New"
+Buttons: Create Report | Cancel
+
+Select the type of data you wish to report on. Single-select checkbox list.
+
+Complete list of 90+ report types (each with name + description):
+Account, Appointment, Communication History, Contact, Contact Event Revenue, Credit Card, Credit Card Transaction, Enterprise, Event, Event Availability, Event Calendar, Event Cost Worksheet, Event Forecast, Event Function Change History, Event Function Summary, Event Lead, Event Lead Function, Event Lifecycle Model, Event Package, Event Package Function, Event Payment, Event Personnel, Event Revenue Analysis, Event Revenue Performance to Plan by Fiscal Period, Event Revenue Performance to Plan by Salesperson, Event Revenue Performance to Plan by Site, Event Revenue Performance to Plan Site Summary, Event Rolling Twelve, Event Sales Activity, Event Sales Financial Activity, Event Sales Pace, Event Sales Pace by Salesperson, Event Sales Performance, Event Sales Performance By Salesperson, Event Schedule by Location, Event Scheduled Deposit, Event Timeline, Function, Function Adjustment, Function Financial Snapshot, Function Menu, Function Payment, Function Personnel, Function Revenue Center Financials, Function Scheduled Deposit, Function Service Item, Function Service Item Ingredient, Function Service Related Item, Function Service Related Item Ingredient, Guest List Booking, Guest List Booking Payment, Guest Rooms Block, Guest Rooms Block Change History, Guest Rooms Booking, Guest Rooms Control (Condensed), Guest Rooms Control (Expanded), Guest Rooms Revenue Performance to Plan [x4 variants], Guest Rooms Sales Pace, Guest Rooms Sales Pace by Salesperson, Guest Rooms Sales Performance, Guest Rooms Sales Performance By Salesperson, Guest Rooms Volume Contract, Ingredient, Ingredient Usage Summary, Location, Lost Business, Master Event, Master Event Function Summary, Master Event Payment, Master Event Scheduled Deposit, Master Profile, Matrix Communication, Matrix Event, Matrix Function, Member Lead, Membership, Request Log, Reservation, Reservation Change History, Reservation Pace, Reservation Party Mix, Reservation Payment, Reservation Service Item, Reservation Service Pulse, Reservation Timeline, Salesperson Productivity by Site, Service Item, Service Item Inventory, Service Menu, Service Related Item, Settings, Site, SMS Message, System Log Entry, Task, User, Venue
+
+### Step 2: Report Builder — /reportTemplates/reportEdit/:id or /reportTemplates/reportNew
+
+Page: "Reports — Edit Report: [Report Type]"
+
+Toolbar (7 buttons): **Preview Report | Download Printable View | Export | Save | Save As | View Charts | Done**
+
+---
+
+**Section: Report Properties**
+- Name (text input — report title)
+- Description (textarea)
+- Folder (tree picker: same folder hierarchy as report list)
+- Owner (typeahead — defaults to current user)
+- Report Type (read-only label showing chosen type)
+
+---
+
+**Section: Report Options**
+- Report Date Range sub-section:
+  - Date Type (dropdown: varies by report type — e.g., "Adjustment Date", "Function Date", "Event Start Date", "Booking Date", etc.)
+  - Date Range (dropdown: Today, Yesterday, Current Week, Last Week, Current Month, Last Month, Current Quarter, Last Quarter, Current Year, Last Year, Custom)
+  - Start Date (date picker — shown when Date Range = Custom)
+  - End Date (date picker — shown when Date Range = Custom)
+- Report Details sub-section:
+  - Hide Detail Rows (checkbox — for summary report types, collapses detail rows)
+
+---
+
+**Section: Select Columns**
+- Search box (filters the Available Columns list)
+- **Available Columns** panel (scrollable tree, left side):
+  - Column groups, each expandable with ∨ arrow:
+    - Primary group (named after report type, e.g., "Function Adjustment")
+    - Related entity groups (e.g., "Event", "Function", "Primary Contact", "Billing Contact Account", etc.)
+  - Each group shows its available field names when expanded (click/double-click to add)
+  - Clicking an available column moves it to Selected Columns
+- **Selected Columns** panel (right side):
+  - List of chosen columns in order
+  - Each has a Delete (×) button to remove
+  - Drag-and-drop reordering
+
+The column groups and their fields vary by report type. Example for Function Adjustment type:
+Group "Function Adjustment": Adjustment Date, Amount, Applied Fees, Applied Rates, Applied Rates Division, Applied Rates Site, Applied Taxes, Created Date/Time, ...
+Group "Event": Event Name, Event Number, Event Type, Event Category, Event Status, Event Start Date, Event End Date, Market Type, Referral Type, Estimated Attendance, Owner, Salesperson, Site, Division, ...
+Group "Function": Function Type, Function Date, Function Number, Location, Start Time, End Time, Estimated Attendance, Guaranteed Attendance, Setup Style, Room Rental, ...
+Group "Primary Contact": First Name, Last Name, Email, Phone, Account, ...
+Group "Billing Contact", "Billing Contact Account", "Master Event", "Site", "Venue", etc.
+
+---
+
+**Section: Add/Edit Groupings**
+- Report Column (dropdown: all selected columns + other report-specific columns)
+- Sort Order (dropdown: Ascending, Descending)
+- [Add] button → appends to Selected Groupings table
+- Selected Groupings table: Column | Sort Direction | [Delete] per row
+
+Groupings cause the report to show a header row for each unique value of that column.
+
+---
+
+**Section: Add/Edit Sorts**
+- Report Column (dropdown)
+- Sort Order (dropdown: Ascending, Descending)
+- [Add] button → appends to Selected Sorts table
+- Selected Sorts table: Column | Sort Direction | [Delete] per row
+
+---
+
+**Section: Add/Edit Calculations**
+- Report Column (dropdown — typically only numeric fields)
+- Calculations: [Average] [Sum] [Maximum] [Minimum] checkboxes (can select multiple)
+- [Add] button → appends to Applied Calculations table
+- Applied Calculations table: Column | Average | Sum | Maximum | Minimum
+
+Calculations appear as footer rows at the bottom of the report (or per group if grouped).
+
+---
+
+**Section: Add/Edit Filters**
+- [Add Filter Group] button — creates a new filter group
+
+**Filter Group structure (one or more):**
+Header: "Filter Group N"
+- [Add Filter] — adds a filter row
+- [Add Filter Group] — adds another group (groups are AND-ed together)
+- [Delete Filter Group] — removes this group
+
+**Filter row structure (one or more per group, rows within group are AND-ed by default):**
+- Row N:
+  - Filter Operator (dropdown: blank for row 1, "AND" or "OR" for subsequent rows)
+  - Report Column (dropdown: all available columns including non-selected ones)
+  - Comparator (dropdown: changes based on column type):
+    - Text: contains, does not contain, equals, does not equal, starts with, is blank, is not blank
+    - Number/Currency: equals, does not equal, less than, greater than, less than or equal, greater than or equal, is blank, is not blank
+    - Date: on, before, after, between, in last N days, is blank, is not blank
+    - Dropdown/list: equals, does not equal, is in list, is not in list
+  - Value (input field — type depends on column: text input, number, date picker, multi-select, or dropdown)
+  - [Delete] button
+
+Logic: Rows within a group follow their Filter Operator (AND/OR). Groups themselves are AND-ed together.
+
+---
+
+**Report Actions:**
+- **Preview Report** — runs the report and shows results inline on the page (with pagination)
+- **Download Printable View** — opens a print-friendly HTML version
+- **Export** — downloads as Excel/CSV/PDF (format selectable)
+- **Save** — saves to current name/folder
+- **Save As** — prompts for new name/folder (creates a copy)
+- **View Charts** — opens chart builder for the report data
+
+---
+
+## 8. EVENT FUNCTIONS TABLE — COMPLETE COLUMN SET
+
+The Functions table within an Event detail page shows these columns:
+Cancel Function (icon) | [checkbox] | **Actions** (Copy | Edit | Service Menus (New) | Service Menus (Classic)) | Start Date (link to function detail) | Start Time | End Time | **Function Type** (link) | Function Name | Function # | Locations | Location Description | Attendance | Room Rental | Minimum Charge | Has Services (Yes/No)
+
+Functions toolbar: [New Function] [Edit Functions] [Mass Edit Selected Functions] [Copy Selected Functions] [Cancel Selected Functions] [… More Actions]
+
+---
+
+## 9. GUEST ROOMS BLOCKS & BOOKINGS — COMPLETE COLUMN SETS
+
+### Guest Rooms Blocks table (on Event detail):
+Actions(Edit) | Block Name (link) | Start Date | Departure Date | Cutoff Date | Site | Status | Contracted | Blocked | Forecast | Pickup | # Rooms | Average Room Rate | Total | Contact
+
+### Guest Rooms Bookings table (on Event detail):
+Actions (View | Edit | Delete | Move | Copy Counts/Rates) | Date | Contracted | Blocked (shown with color indicator: green=on target, yellow=below, red=over) | Forecast | Pickup | Remaining | Comps | Occupancy Total | Guest Room Types | Room Booking Subtotal | Comp Total | Room Booking Total | Average Room Rate | Booking and Bundle Total | Average Room+Bundle Rate
+
+Buttons above bookings table: [Add/Edit Guest Rooms Booking] [Move All Bookings] [View Guest Rooms Block] [Edit Guest Rooms Block] [… More Actions]
+
+---
+
+## 10. FUNCTION SERVICES (BEO) — "VIEW DAILY MENU MIX"
+
+This is an alternative view accessible from the BEO page's "…" More Actions menu. It shows a consolidated/flat view of all service items across all menus and all service types for the function — useful for kitchen production sheets and daily prep planning.
+
+---
+
+## 11. INTER-MODULE ACTIONS FROM EVENT DETAIL
+
+### Functions section More Actions (…):
+- Multi Copy Event
+- Move Event  
+- Change Master Event
+- New Event (creates a sibling event under the same master)
+- Copy Event
+
+### Event-level More Actions (…) toolbar (top of event detail):
+- New Event (with function)
+- Copy Event
+- Multi Copy Event  
+- Move Event
+- Change Master Event (re-parents the event to a different master event)
+
+---
+
+## 12. FUNCTION TIMELINE ITEMS
+
+Each function has a timeline (separate from the event timeline) tracking setup milestones. Timeline items have:
+- Start Date
+- Start Time
+- Name (milestone name)
+- Description
+
+Actions: Add Timeline Items (bulk add from template), Edit Timeline Items, Copy Timeline Items (from another function)
+
+---
+
+## 13. SERVICE TYPE FIELDS (editable within BEO)
+
+When "Service Type Fields" is expanded within the Function Menu edit form, each service type block reveals:
+- Service Type (text input — the name of the service type)
+- Use Function Time Range (checkbox — inherit timing from function)
+- Start Time (time input — if custom)
+- End Time (time input — if custom)
+- Service Location (text — where within the venue this service type is served)
+- Description (textarea — appears on BEO document)
+- Service Notes (textarea — appears on BEO document)
+- Mark Notes Internal (checkbox — hides notes from client-facing documents)
+
+---
+
+## 14. REPLIT IMPLEMENTATION NOTES FOR BEO SYSTEM
+
+The BEO system requires a 4-level data model:

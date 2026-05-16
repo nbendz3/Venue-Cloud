@@ -20,3 +20,6 @@ export * from "./adjustments";
 export * from "./additionalFees";
 export * from "./depositsScheduled";
 export * from "./functionLifecycleHistory";
+export * from "./settings";
+export * from "./masterEvents";
+export * from "./communicationHistory";

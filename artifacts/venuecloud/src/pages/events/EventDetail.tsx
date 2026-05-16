@@ -3,9 +3,11 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, MoreHorizontal, DollarSign, Utensils, TrendingUp } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStatusColor } from "./EventsList";
+import { EventMoreActions } from "@/components/EventMoreActions";
+import { CommunicationHistoryPanel } from "@/components/CommunicationHistoryPanel";
 import {
   Table,
   TableBody,
@@ -84,7 +86,11 @@ export default function EventDetail() {
               </Link>
             </Button>
             <Button variant="outline" size="sm"><Edit className="w-4 h-4 mr-2" /> Edit</Button>
-            <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
+            <EventMoreActions
+              eventId={eventId}
+              eventName={event.eventName}
+              masterEventId={(event as any).masterEventId}
+            />
           </div>
         </header>
 
@@ -214,17 +220,32 @@ export default function EventDetail() {
               </Card>
             </div>
             
-            {/* Remaining sections — placeholders */}
-            {SECTIONS.slice(3).map((section, idx) => (
-              <div key={section} id={`section-${idx+3}`} className="scroll-mt-6 opacity-60">
-                <h2 className="text-lg font-semibold mb-4 pb-2 border-b">{section}</h2>
-                <Card className="bg-muted/30 border-dashed">
-                  <CardContent className="p-8 text-center text-muted-foreground text-sm">
-                    {section} content will render here
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
+            {/* Remaining sections — some with real content, rest as placeholders */}
+            {SECTIONS.slice(3).map((section, idx) => {
+              const sectionIdx = idx + 3;
+              if (section === "Communication History") {
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Communication History</h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        <CommunicationHistoryPanel relatedType="Event" relatedId={eventId} />
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              }
+              return (
+                <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6 opacity-60">
+                  <h2 className="text-lg font-semibold mb-4 pb-2 border-b">{section}</h2>
+                  <Card className="bg-muted/30 border-dashed">
+                    <CardContent className="p-8 text-center text-muted-foreground text-sm">
+                      {section} content will render here
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })}
 
           </div>
         </div>
