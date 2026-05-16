@@ -12,7 +12,7 @@ const SECTIONS = [
 export default function AccountDetail() {
   const params = useParams();
   const accountId = Number(params.id);
-  const { data: account, isLoading } = useGetAccount(accountId, { query: { enabled: !!accountId } });
+  const { data: account, isLoading } = useGetAccount(accountId, { query: { enabled: !!accountId } as any });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;

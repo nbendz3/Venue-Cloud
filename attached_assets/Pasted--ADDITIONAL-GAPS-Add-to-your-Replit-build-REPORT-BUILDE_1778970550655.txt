@@ -1,0 +1,180 @@
+## ADDITIONAL GAPS — Add to your Replit build:
+
+---
+
+### REPORT BUILDER MODULE — Full Specification
+
+**URL:** /reports/new (type selection), /reports/:id/edit (builder), /reports/:id/run (results)
+
+**New Report — Type Selection Page:**
+- Grid of all report types with Name + Description columns
+- Radio/checkbox select one type → "Create Report" button
+- 90+ types — implement at minimum: Event, Function, Event Lead, Contact, Account, Task, Function Menu, Function Service Item, Guest Rooms Block, Function Financial Snapshot, Function Revenue Center Financials
+
+**Report Edit Page — Sections:**
+
+1. **Report Properties**
+   - Name (text input, required)
+   - Description (textarea)
+   - Folder (tree picker matching the folder hierarchy)
+   - Owner (lookup)
+   - Report Type (read-only, set at creation)
+   - Last Updated metadata (read-only)
+
+2. **Report Options**
+   - Date Type (dropdown): options vary by report type — e.g., "Event - Day/Date", "Function Date", "Created Date", "Last Updated Date"
+   - Date Range (dropdown): Today, Yesterday, This Week, Last Week, This Month, Last Month, This Quarter, Last Quarter, This Year, Last Year, Next 7 Days, Next 14 Days, Next 30 Days, Next 60 Days, Next 90 Days, Next 180 Days, Custom
+   - Start Date (date picker, shown when Custom selected)
+   - End Date (date picker, shown when Custom selected)
+   - Hide Detail Rows (checkbox — collapses to grouped summary rows)
+
+3. **Select Columns (dual-list builder)**
+   - Left panel: "Available Columns" — grouped by category (Function, Event, Financial, Primary Contact, etc.), each group expandable to show individual fields
+   - Search box to filter available columns
+   - Click a field name to add it to Selected Columns
+   - Right panel: "Selected Columns" — ordered list with Delete button per item, draggable to reorder
+
+4. **Add/Edit Groupings**
+   - Report Column dropdown (all selected columns)
+   - Sort Order dropdown (Ascending/Descending)
+   - Add button → adds row to "Selected Groupings" table (Column | Sort Direction | Delete)
+
+5. **Add/Edit Sorts** (same UI pattern as Groupings)
+
+6. **Add/Edit Calculations**
+   - Report Column dropdown
+   - Calculation checkboxes: Average, Sum, Maximum, Minimum (multi-select)
+   - Add button → adds row to "Applied Calculations" table (Column | Average | Sum | Maximum | Minimum | Delete)
+
+7. **Add/Edit Filters**
+   - "Add Filter Group" button creates a group
+   - Each group: "Filter Group N" header + "Add Filter", "Add Filter Group", "Delete Filter Group" buttons
+   - Each filter row: Filter Operator (AND/OR, shown after first row), Report Column dropdown (all available columns for report type), Comparator dropdown (Equals, Not Equals, Contains, Does Not Contain, Starts With, Is Empty, Is Not Empty, Greater Than, Less Than, Greater Than or Equal, Less Than or Equal, Between), Value input (text/date/number depending on column type), Delete button
+   - Multiple filter groups are AND-ed together; rows within a group use the row's operator
+
+**Action buttons:** Preview Report (runs and shows inline), Download Printable View, Export (CSV/Excel), Save, Save As (prompts for new name/folder), View Charts, Delete, Done (returns to list)
+
+**Report Results Page:**
+- Paginated data table matching selected columns
+- Column headers clickable for sort
+- Grouping headers collapse/expand rows
+- Calculation totals row at bottom
+- Export button
+
+**Scheduled Report Jobs:**
+- Create schedule: Report, Frequency (Daily/Weekly/Monthly), Day/Time, Output Format (PDF/Excel/CSV), Recipients (email list)
+- View active scheduled jobs table
+- View Report Job Results — history table with Download Results link
+
+---
+
+### MASTER EVENTS MODULE
+
+**Data model: master_events**
+id, primary_contact_id, master_event_name, group_master_account, master_event_type, market_type, referral_type, owner, salesperson, master_event_number (auto), division, payment_arrangements, billing_contact_id, billing_notes, created_at, updated_at, created_by, updated_by
+
+**New Master Event form fields:** Primary Contact (lookup), Master Event Name*, Group Master Account, Master Event Type (dropdown), Market Type (dropdown), Referral Type (dropdown), Owner* (lookup, defaults to logged-in user), Salesperson* (lookup), Master Event Number (auto-generated, read-only), Division* (dropdown), Payment Arrangements (dropdown), Billing Contact (lookup), Billing Notes (textarea, 256 char limit)
+
+**Save buttons:** Save / Save and New Event with Function / Cancel
+
+**Master Event Detail page sections:** Master Event Details, Billing Details, Events (table of all linked events), Functions (aggregate across all linked events), Contacts, Notes, Tasks, Appointments, Communication History, Attachments, Last Updated
+
+**Linking:** Events have a master_event_id foreign key. Multiple events can belong to one master event.
+
+---
+
+### SETTINGS MODULE — Configuration Tables
+
+Add these lookup/reference tables that power the dropdowns throughout the app:
+
+**event_types** — id, name, site_id
+**master_event_types** — id, name
+**event_categories** — id, name
+**market_types** — id, name
+**referral_types** — id, name
+**function_types** — id, name, check_average_1, check_average_2, meal_period_id
+**function_sub_types** — id, name, function_type_id
+**cancelled_reasons** — id, name
+**setup_styles** — id, name
+**payment_arrangements** — id, name
+**payment_methods** — id, name
+**payment_types** — id, name
+**meal_periods** — id, name, field_code
+**personnel_roles** — id, name
+**contact_types** — id, name
+**service_item_categories** — id, name, revenue_center_id, applied_rates_id
+**service_item_category_ii** — id, name
+**service_types_master** — id, name (Buffet/Food & Bev/Set Up/Tasting Setup/Enhancements/AV/Labor/Misc)
+**service_menu_categories** — id, name, sort_order (1=Wedding Menus, 2=Banquet Menus, 3=Beverage Menus, 4=Setup/Service Menus, 5=Amenities)
+**ingredients** — id, name, category_id, unit, cost_per_unit
+**ingredient_categories** — id, name
+**applied_rates** — id, name (Gratuity and Sales Tax / Sales Tax Only / Gratuity Only / None)
+**fiscal_years** — id, name, start_date, end_date
+**fiscal_periods** — id, fiscal_year_id, name, start_date, end_date, sort_order
+**budget_quotas** — id, fiscal_period_id, salesperson_id, site_id, revenue_type, quota_amount
+**timeline_types** — id, name
+**timeline_items_master** — id, name, timeline_type_id, default_offset_days, default_offset_direction
+
+Build a Settings UI page with accordion sections that allow CRUD operations on all these lookup tables. Each section should have a list view with New/Edit/Delete per row.
+
+---
+
+### EVENT MORE ACTIONS (…) MENU — Full Options
+
+On the Event Detail page, the `…` button opens:
+- **New Event** (→ new event form)
+- **Copy Event** (copies all event fields, prompts for new date)
+- **Multi Copy Event** (copies event multiple times, prompts for number of copies and date range/pattern)
+- **Move Event** (changes event date)
+- **Change Master Event** (reassigns event to different master event)
+
+On the Function Detail page, the `…` button opens:
+- **New Function**
+- **Copy Function** (copies to same or different event/date)
+- **Save and Copy Function** (during edit)
+
+On the Function Services page, each Menu's `…` opens:
+- **Copy Menu to Another Function**
+- **Delete Menu**
+
+Each Service Type's `…` opens:
+- **Add Items from Library** (browse master service items)
+- **Copy Service Type**
+
+---
+
+### COMMUNICATION HISTORY — Log Activity Form
+
+When clicking "Log Activity" on an event, function, lead, contact, or account:
+
+**Fields:**
+- Subject (text)
+- Type (dropdown: Call, Email, Meeting, Note, Letter, Fax)
+- Category (dropdown, configured in settings)
+- Result (dropdown: Left Message, Spoke With, No Answer, etc.)
+- Date (date/time picker, defaults to now)
+- Contact (lookup)
+- Content / Notes (rich textarea)
+- Internal (checkbox)
+- Attachments (file upload)
+
+**Generate Document button:** opens a modal to select a document template, generates and attaches a PDF (BEO, proposal, contract, etc.)
+
+**Send Email button:** opens an email composer with To/CC/BCC, Subject, Body (with template selection), Attachments.
+
+---
+
+### CALENDAR LEGEND — Event Color Coding
+
+The Event Calendar Legend toggle reveals color coding. Events are colored by their status/lifecycle stage:
+- Colors correspond to lifecycle phases configured in Settings → Events → Manage Lifecycle Event Calendar Colors
+- Each lifecycle status (New/Tentative/Definite/Closed/etc.) gets a configurable color
+- The calendar block also shows a triangle/arrow indicator icon (▲) for events with guest rooms blocks
+
+Implement this as a legend panel that toggles visibility, showing colored swatches for each status.
+
+---
+
+### QUICK ENTRY
+
+A configurable toolbar that provides shortcuts for the most common data entry tasks. In Settings → Manage Quick Entry Toolbar, admins configure which fields appear. When triggered from the calendar, it opens an inline panel/modal with just the configured required fields to create a new event+function quickly without the full form. Implement as a simplified "quick add" modal with: Event Name, Primary Contact (lookup), Event Date, Function Type, Location, Start/End Time, Estimated Attendance.

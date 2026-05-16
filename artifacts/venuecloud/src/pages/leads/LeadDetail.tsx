@@ -14,7 +14,7 @@ const SECTIONS = [
 export default function LeadDetail() {
   const params = useParams();
   const leadId = Number(params.id);
-  const { data: lead, isLoading } = useGetLead(leadId, { query: { enabled: !!leadId } });
+  const { data: lead, isLoading } = useGetLead(leadId, { query: { enabled: !!leadId } as any });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ContactDetail() {
   const params = useParams();
   const contactId = Number(params.id);
-  const { data: contact, isLoading } = useGetContact(contactId, { query: { enabled: !!contactId } });
+  const { data: contact, isLoading } = useGetContact(contactId, { query: { enabled: !!contactId } as any });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;

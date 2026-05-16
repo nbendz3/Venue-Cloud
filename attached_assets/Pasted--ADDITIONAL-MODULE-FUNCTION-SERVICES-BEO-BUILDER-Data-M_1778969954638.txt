@@ -1,0 +1,230 @@
+## ADDITIONAL MODULE: FUNCTION SERVICES (BEO BUILDER)
+
+### Data Models to Add
+
+#### menu_templates (the library of pre-built menus)
+id, name, menu_number, category (Wedding Menus / Banquet Menus / Beverage Menus / Setup and Service Menus / Amenities), pricing_type (A La Carte Pricing / Package Pricing - Percentage Amount Allocation / Package Pricing - Monetary Amount Allocation), package_price, package_cost, use_inclusive_pricing, created_by, created_at
+
+#### function_menus (menus applied to a specific function)
+id, function_id, template_id (nullable — null if custom), function_menu_name, pricing_type, auto_calculate_quantity (bool), number_required, per_number_of_guests, menu_quantity (calculated), menu_total_charges (calculated), menu_total_cost (calculated), use_function_time_range (bool), start_time, end_time, menu_location, description, menu_notes, notes_internal (bool), created_at, updated_at
+
+#### service_types (groupings within a menu)
+id, function_menu_id, service_type_name (Buffet / Food & Bev / Set Up / Tasting Setup / Enhancements / Audio Visual Equipment / Labor / Miscellaneous), use_function_time_range (bool), start_time, end_time, service_location, description, service_notes, notes_internal (bool), max_selections (null = unlimited, or number), display_order, service_type_total_charges (calculated), service_type_total_cost (calculated)
+
+#### service_items (individual line items within a service type)
+id, service_type_id, item_name, description, notes, notes_internal (bool), quantity, auto_quantity (bool), a_la_carte_price, add_on_price, cost, use_ingredients_cost (bool), number_required, per_number_of_guests, quantity_precision (Whole / Half / Quarter), category (dropdown), category_sub_option, category_ii, mark_item_internal (bool), mark_quantity_internal (bool), use_function_time_range (bool), start_time, end_time, charge_hourly (bool), auto_hours, num_hours, use_function_setup_teardown (bool), setup_minutes, teardown_minutes, apply_overtime (bool), overtime_hours_price, overtime_hours, hours_precision (Quarter / Half), revenue_center (Food / Alcoholic Beverage / Non-Alcoholic Beverage / Rentals / Equipment / Labor / Service Fees / Room Rental / Cover Charge / Outside Services / Other Taxable / Other No Taxes), applied_rates (Gratuity and Sales Tax / Sales Tax Only / Gratuity Only / None), total (calculated), display_order
+
+#### revenue_centers
+id, name, sales_tax_rate (%), occupancy_tax_rate (%)
+Seed with: Food 7.75%/0%, Alcoholic Beverage 7.75%/0%, Non-Alcoholic Beverage 7.75%/0%, Service Fees 0%/0%, Guest Rooms 0%/11.5%, Room Rental 7.75%/0%, Labor 0%/0%, Equipment 7.75%/0%, Rentals 7.75%/0%, Other Taxable 7.75%/0%, Other No Taxes 0%/0%, Cover Charge 0%/0%, Outside Services 0%/0%
+
+#### service_fees
+id, name (Gratuity 22% / Gratuity 20% / Gratuity 18%), rate_percent, is_taxable, use_rev_ctr_rates, use_fee_tax_rates, sales_tax_rate, occupancy_tax_rate
+
+#### payments
+id, related_type (Event / Function), related_id, date, payment_amount, allocated_amount, payment_method (Check / Credit Card / Cash / ACH / Wire), payment_type (Deposit / Payment), description, salesperson, credit_card_id (nullable), from_gateway (bool), posted (bool), is_event_payment (bool)
+
+#### adjustments
+id, function_id, date, amount, revenue_center_id, applied_rates, description, salesperson
+
+#### additional_fees
+id, function_id, date, amount, service_fee_id, description, revenue_center_id, salesperson
+
+#### deposits_scheduled
+id, related_type (Event / Function), related_id, date, amount, description, salesperson, has_task (bool)
+
+#### function_lifecycle_history
+id, function_id, event_status (New / Inquiry / Proposal / Tentative / Definite / Event Order / Guaranteed / Actualized / Thank You / Closed), date, salesperson, forecasted_charges, charges, adjusted_charges, cost, margin, margin_percent
+
+---
+
+### FUNCTION SERVICES PAGE — UI Specification
+
+**URL pattern:** /events/:eventId/functions/:functionId/services
+
+**Header:** "Function Services" + breadcrumb: Event Name → Function Name + Function Date + Function # + Location
+Links: Event name (→ event detail), Master Event name (→ master event detail)
+
+**Top Controls:**
+- "Show Details for Function" dropdown — all functions on the event, format: "FunctionNumber - FunctionType on DayDate at StartTime-EndTime in Location"
+- "Add Menu" button → opens menu template library modal/page
+- "More Actions (…)" dropdown → options: Copy All Menus from Another Function, etc.
+
+**Add Menu Dialog/Page:**
+- Search String input
+- Category filter dropdown (Show All / Wedding Menus / Banquet Menus / Beverage Menus / Setup and Service Menus / Amenities)
+- Selectable table: Name | Menu Number | Category | Pricing Type | Package Price | Package Cost | Use Inclusive Pricing
+- Add + Cancel buttons
+- Multi-select checkboxes to add multiple menus at once
+
+**Per Menu Block:**
+- Section header: menu name (e.g., "Custom Menu") with colored left border
+- Edit Menu button + More Actions (…) → Delete Menu, Copy Menu to Another Function
+- Display fields: Function Menu Name, Pricing Type, Menu Quantity, Menu Total Charges, Menu Total Cost
+- Expandable/collapsible service type sections (chevron icon)
+
+**Per Service Type Block (within a menu):**
+- Section header: service type name (e.g., "Buffet", "Food & Bev", "Set Up")
+- "Add Custom Items" button + More Actions (…) → Add Items from Library
+- Display: Service Type Total Charges, Service Type Total Cost, Maximum # Selections
+- "Delete Selected Items" button
+- Items table with columns:
+  - Checkbox (bulk select)
+  - Actions: Edit Menu | Delete
+  - Person icon (contact assignment)
+  - Item (name)
+  - Notes
+  - Notes Internal (Yes/No)
+  - Quantity
+  - A La Carte Price
+  - Add-On Price
+  - # Hours
+  - Total
+  - Revenue Center
+  - Applied Rates
+  - Category
+  - Category Sub Option
+  - Category II
+- "New Service Type" toggle/button to add another grouping
+- Collapsed/expanded state per item via "Show Details" checkbox
+
+**Item expanded detail sub-row:**
+Row 1 (left): Service Item Name (text), Description (textarea), Notes (textarea), Notes Internal (checkbox), Quantity (number), Auto Quantity (checkbox), A La Carte Price ($), Add-On Price
+Row 2 (right): Cost ($), Use Ingredients Cost (checkbox), Number Required, Per Number of Guests, Quantity Precision dropdown, Category II dropdown, Mark Item Internal (checkbox), Mark Quantity Internal (checkbox), Use Function Time Range (checkbox) → Start/End Time fields
+Row 3: Charge Hourly (checkbox), Auto Hours, # Hours, Use Function Setup and Teardown Times (checkbox), Setup Minutes, Teardown Minutes, Apply Overtime Hours Charges, Overtime Hours Price, Overtime Hours, Hours Precision dropdown
+
+**Show All Item Details / Hide All Item Details** buttons at top of each service type.
+
+**Bottom sections (same page, below menus):**
+- Contacts table (contact name, role, phones, email)
+- Communication History (Log Activity, Generate Function Document, Send Function Email)
+- Generate Event Document / Send Event Email / Generate Master Event Document / Send Master Event Email buttons
+- Attachments section
+
+---
+
+### EVENT FINANCIAL DETAILS PAGE — UI Specification
+
+**URL pattern:** /events/:eventId/financials
+
+**Action buttons:** View Event Details | Post Functions | Revert Functions
+**Toggle:** Display By Revenue Center Category (checkbox)
+
+**Section 1 — Event Total Charges table:**
+Columns: Function | Date | Food | Alcoholic Beverage | Equipment | Rentals | Sales Tax | Occupancy Tax | Gratuity 22% | Total
+One row per function, Totals row
+Below table: Payments Received (right-aligned), Balance Due (right-aligned)
+
+**Section 2 — Event Margins table:**
+Columns: Function | Date | Adjusted Charges | Cost | Margin | Margin %
+Totals row
+
+**Section 3 — Deposits Scheduled:**
+"Schedule Deposit" button
+Table: Actions | Date | Amount | Description | Salesperson | Has Task
+
+**Section 4 — Sertifi ePayment Details:**
+"Create Folder" button
+
+**Section 5 — Event Payments Received:**
+"Record Payment" button + More Actions (…)
+Table: Actions | Date | Payment Amount | Allocated Amount | Payment Method | Payment Type | Description | Salesperson | Credit Card | From Gateway | Posted
+
+**Section 6 — Function Payments Received:**
+Table: Function | Date | Payment Amount | Payment Method | Payment Type | Description | Salesperson | Credit Card | From Gateway | Event Payment
+
+**Section 7 — Discounts:**
+Discount Notes field
+"Edit Rates" button
+
+**Section 8 — Tax Rates:**
+"Edit Rates" button
+Table: Revenue Center | Sales Tax % | Occupancy Tax % (read-only display, editable via modal)
+
+**Section 9 — Service Fee Tax Rates:**
+Table: Fee Is Taxable | Use Rev Ctr Rates | Use Fee Tax Rates | Sales Tax % | Occupancy Tax %
+
+**Section 10 — Service Fee Rates:**
+Allow System Fee Rate Updates (Yes/No)
+"Edit Rates" button
+Table: Service Fee Rates | Rate (%)
+
+---
+
+### FUNCTION FINANCIAL DETAILS PAGE — UI Specification
+
+**URL pattern:** /events/:eventId/functions/:functionId/financials
+
+**Action buttons:** View Function Details | View Services | Post Function
+**"Show Details for Function" dropdown**
+**Toggle:** Display By Revenue Center Category
+
+**Section 1 — Function Total Charges:**
+Table: Revenue Center | Charges | Discounts/Adjustments | Adjusted Charges | Sales Tax | Occupancy Tax | Gratuity 22% | Total
+Totals row, Minimum Charge, Payments Received, Balance Due
+
+**Section 2 — Function Margins:**
+Table: Revenue Center | Adjusted Charges | Cost | Margin | Margin %
+Totals row
+
+**Section 3 — Deposits Scheduled** (same as event financial)
+
+**Section 4 — Payments Received:**
+"Record Payment" + "Add Credit Card" buttons
+Table: Actions | Date | Amount | Payment Method | Payment Type | Description | Salesperson | Credit Card | From Gateway | Event Payment
+
+**Section 5 — Adjustments / Discounts:**
+"Add Adjustment/Discount" button
+Table: Actions | Date | Amount | Revenue Center | Applied Rates | Description | Salesperson
+
+**Section 6 — Additional Service Fees:**
+"Add Additional Fee" button
+Table: Actions | Date | Amount | Service Fee Name | Description | Revenue Center | Salesperson
+
+**Section 7 — Function Lifecycle History:**
+Expandable rows (Show Details checkbox per row)
+Statuses (in order): New → Inquiry → Proposal → Tentative → Definite → Event Order → Guaranteed → Actualized → Thank You → Closed → Most Recent
+Columns: Show Details | Event Status | Date | Salesperson | Forecasted Charges | Charges | Adjusted Charges | Cost | Margin | Margin %
+
+---
+
+### BUSINESS LOGIC TO IMPLEMENT
+
+1. **Auto-calculate Menu Quantity:** When Auto Calculate Quantity is checked, Menu Quantity = ceiling(Number Required × Function Estimated Attendance / Per Number of Guests)
+
+2. **Item Total calculation:** Total = (A La Carte Price × Quantity) + (Add-On Price × Quantity if applicable)
+
+3. **Service Fee calculation:** Applied Rates drives which fees are added — "Gratuity and Sales Tax" adds both, "Sales Tax Only" adds sales tax, "Gratuity Only" adds gratuity, "None" adds nothing
+
+4. **Tax calculation per revenue center:** Each revenue_center has its own sales_tax_rate and occupancy_tax_rate applied to adjusted charges
+
+5. **Function lifecycle:** When a function is created, automatically create a "New" lifecycle history entry. Advancing status creates a new history entry with a snapshot of current financial figures
+
+6. **"Post Function"** action: locks the financial figures and creates a "Most Recent" lifecycle history snapshot
+
+7. **Menu template library:** Templates are site-wide master menus. When applied to a function, they are copied (not linked) so edits don't affect the template
+
+8. **Balance Due:** = Total Charges − Payments Received (can be negative if overpaid)
+
+9. **Margin %:** = (Adjusted Charges − Cost) / Adjusted Charges × 100 (handle division by zero)
+
+---
+
+### API ROUTES TO ADD
+
+- GET/POST /api/functions/:id/menus
+- GET/PUT/DELETE /api/function-menus/:id
+- GET/POST /api/function-menus/:id/service-types
+- GET/PUT/DELETE /api/service-types/:id
+- GET/POST /api/service-types/:id/items
+- GET/PUT/DELETE /api/service-items/:id
+- GET /api/menu-templates (with ?category= filter)
+- POST /api/functions/:id/add-menu-template (copies template to function)
+- GET /api/events/:id/financials
+- GET /api/functions/:id/financials
+- POST /api/functions/:id/post
+- POST /api/payments
+- POST /api/adjustments
+- POST /api/deposits
+- GET/PUT /api/events/:id/tax-rates
+- GET/PUT /api/events/:id/service-fee-rates

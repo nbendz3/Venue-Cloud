@@ -763,6 +763,339 @@ export interface CalendarEvent {
   functions?: CalendarEventFunctionsItem[];
 }
 
+export interface MenuTemplate {
+  id: number;
+  name: string;
+  /** @nullable */
+  menuNumber?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  pricingType?: string | null;
+  /** @nullable */
+  packagePrice?: string | null;
+  /** @nullable */
+  packageCost?: string | null;
+  /** @nullable */
+  useInclusivePricing?: boolean | null;
+  /** @nullable */
+  createdBy?: string | null;
+  createdAt?: string;
+}
+
+export interface ServiceItem {
+  id: number;
+  serviceTypeId: number;
+  itemName: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  notesInternal?: boolean | null;
+  /** @nullable */
+  quantity?: string | null;
+  /** @nullable */
+  autoQuantity?: boolean | null;
+  /** @nullable */
+  aLaCartePrice?: string | null;
+  /** @nullable */
+  addOnPrice?: string | null;
+  /** @nullable */
+  cost?: string | null;
+  /** @nullable */
+  numberRequired?: number | null;
+  /** @nullable */
+  perNumberOfGuests?: number | null;
+  /** @nullable */
+  quantityPrecision?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  categorySubOption?: string | null;
+  /** @nullable */
+  categoryIi?: string | null;
+  /** @nullable */
+  markItemInternal?: boolean | null;
+  /** @nullable */
+  chargeHourly?: boolean | null;
+  /** @nullable */
+  numHours?: string | null;
+  /** @nullable */
+  revenueCenterId?: number | null;
+  /** @nullable */
+  appliedRates?: string | null;
+  /** @nullable */
+  itemTotal?: string | null;
+  /** @nullable */
+  revenueCenterName?: string | null;
+}
+
+export interface ServiceType {
+  id: number;
+  functionMenuId: number;
+  serviceTypeName: string;
+  /** @nullable */
+  startTime?: string | null;
+  /** @nullable */
+  endTime?: string | null;
+  /** @nullable */
+  serviceLocation?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  serviceNotes?: string | null;
+  /** @nullable */
+  notesInternal?: boolean | null;
+  /** @nullable */
+  maxSelections?: number | null;
+  /** @nullable */
+  displayOrder?: number | null;
+  /** @nullable */
+  serviceTypeTotalCharges?: string | null;
+  /** @nullable */
+  serviceTypeTotalCost?: string | null;
+  items?: ServiceItem[];
+}
+
+export interface FunctionMenu {
+  id: number;
+  functionId: number;
+  /** @nullable */
+  templateId?: number | null;
+  functionMenuName: string;
+  /** @nullable */
+  pricingType?: string | null;
+  /** @nullable */
+  autoCalculateQuantity?: boolean | null;
+  /** @nullable */
+  numberRequired?: number | null;
+  /** @nullable */
+  perNumberOfGuests?: number | null;
+  /** @nullable */
+  menuQuantity?: string | null;
+  /** @nullable */
+  menuTotalCharges?: string | null;
+  /** @nullable */
+  menuTotalCost?: string | null;
+  /** @nullable */
+  menuLocation?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  menuNotes?: string | null;
+  serviceTypes?: ServiceType[];
+}
+
+export interface RevenueCenter {
+  id: number;
+  name: string;
+  /** @nullable */
+  salesTaxRate?: string | null;
+  /** @nullable */
+  occupancyTaxRate?: string | null;
+}
+
+export interface ServiceFee {
+  id: number;
+  name: string;
+  /** @nullable */
+  ratePercent?: string | null;
+  /** @nullable */
+  isTaxable?: boolean | null;
+  /** @nullable */
+  salesTaxRate?: string | null;
+  /** @nullable */
+  occupancyTaxRate?: string | null;
+}
+
+export interface Payment {
+  id: number;
+  relatedType: string;
+  relatedId: number;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  paymentAmount?: string | null;
+  /** @nullable */
+  allocatedAmount?: string | null;
+  /** @nullable */
+  paymentMethod?: string | null;
+  /** @nullable */
+  paymentType?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  posted?: boolean | null;
+  /** @nullable */
+  isEventPayment?: boolean | null;
+  /** @nullable */
+  fromGateway?: boolean | null;
+}
+
+export interface Adjustment {
+  id: number;
+  functionId: number;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  revenueCenterId?: number | null;
+  /** @nullable */
+  appliedRates?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  revenueCenterName?: string | null;
+}
+
+export interface AdditionalFee {
+  id: number;
+  functionId: number;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  serviceFeeId?: number | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  revenueCenterId?: number | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  serviceFeeName?: string | null;
+  /** @nullable */
+  revenueCenterName?: string | null;
+}
+
+export interface DepositScheduled {
+  id: number;
+  relatedType: string;
+  relatedId: number;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  amount?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  hasTask?: boolean | null;
+}
+
+export interface FunctionLifecycleHistory {
+  id: number;
+  functionId: number;
+  eventStatus: string;
+  /** @nullable */
+  date?: string | null;
+  /** @nullable */
+  salesperson?: string | null;
+  /** @nullable */
+  forecastedCharges?: string | null;
+  /** @nullable */
+  charges?: string | null;
+  /** @nullable */
+  adjustedCharges?: string | null;
+  /** @nullable */
+  cost?: string | null;
+  /** @nullable */
+  margin?: string | null;
+  /** @nullable */
+  marginPercent?: string | null;
+}
+
+export type EventFinancialsFunctionsItem = {
+  functionId: number;
+  functionType: string;
+  /** @nullable */
+  functionDate?: string | null;
+  charges: number;
+  adjustedCharges?: number;
+  salesTax?: number;
+  occupancyTax?: number;
+  gratuity?: number;
+  total: number;
+  cost?: number;
+  margin?: number;
+  marginPercent?: number;
+};
+
+export type EventFinancialsTotals = {
+  charges?: number;
+  adjustedCharges?: number;
+  salesTax?: number;
+  occupancyTax?: number;
+  gratuity?: number;
+  total: number;
+  cost?: number;
+  margin?: number;
+  marginPercent?: number;
+};
+
+export interface EventFinancials {
+  eventId: number;
+  eventName: string;
+  functions: EventFinancialsFunctionsItem[];
+  totals: EventFinancialsTotals;
+  paymentsReceived: number;
+  balanceDue: number;
+  payments?: Payment[];
+  depositsScheduled?: DepositScheduled[];
+  taxRates?: RevenueCenter[];
+  serviceFees?: ServiceFee[];
+}
+
+export type FunctionFinancialsRevenueBreakdownItem = {
+  revenueCenterName: string;
+  charges?: number;
+  adjustments?: number;
+  adjustedCharges?: number;
+  salesTax?: number;
+  occupancyTax?: number;
+  gratuity?: number;
+  total: number;
+  cost?: number;
+  margin?: number;
+  marginPercent?: number;
+};
+
+export type FunctionFinancialsTotals = {
+  charges?: number;
+  adjustedCharges?: number;
+  salesTax?: number;
+  occupancyTax?: number;
+  gratuity?: number;
+  total: number;
+  cost?: number;
+  margin?: number;
+  marginPercent?: number;
+};
+
+export interface FunctionFinancials {
+  functionId: number;
+  functionType: string;
+  /** @nullable */
+  functionDate?: string | null;
+  revenueBreakdown: FunctionFinancialsRevenueBreakdownItem[];
+  totals: FunctionFinancialsTotals;
+  paymentsReceived: number;
+  balanceDue: number;
+  payments?: Payment[];
+  adjustments?: Adjustment[];
+  additionalFees?: AdditionalFee[];
+  depositsScheduled?: DepositScheduled[];
+  lifecycleHistory?: FunctionLifecycleHistory[];
+}
+
 export type ListEventsParams = {
 status?: string;
 site?: string;
@@ -815,5 +1148,110 @@ end: string;
 siteId?: string;
 status?: string;
 type?: string;
+};
+
+export type CreateFunctionMenuBody = {
+  functionMenuName: string;
+  pricingType?: string;
+  description?: string;
+  menuNotes?: string;
+};
+
+export type AddMenuTemplateBody = {
+  templateId: number;
+};
+
+export type UpdateFunctionMenuBody = {
+  functionMenuName?: string;
+  pricingType?: string;
+  autoCalculateQuantity?: boolean;
+  numberRequired?: number;
+  perNumberOfGuests?: number;
+  menuNotes?: string;
+  description?: string;
+};
+
+export type CreateServiceTypeBody = {
+  serviceTypeName: string;
+  description?: string;
+  serviceNotes?: string;
+  maxSelections?: number;
+};
+
+export type UpdateServiceTypeBody = {
+  serviceTypeName?: string;
+  description?: string;
+  serviceNotes?: string;
+  maxSelections?: number;
+};
+
+export type CreateServiceItemBody = {
+  itemName: string;
+  description?: string;
+  notes?: string;
+  quantity?: number;
+  aLaCartePrice?: number;
+  addOnPrice?: number;
+  cost?: number;
+  revenueCenterId?: number;
+  appliedRates?: string;
+  category?: string;
+};
+
+export type UpdateServiceItemBody = {
+  itemName?: string;
+  description?: string;
+  notes?: string;
+  quantity?: number;
+  aLaCartePrice?: number;
+  addOnPrice?: number;
+  cost?: number;
+  revenueCenterId?: number;
+  appliedRates?: string;
+  category?: string;
+  chargeHourly?: boolean;
+  numHours?: number;
+};
+
+export type GetMenuTemplatesParams = {
+category?: string;
+search?: string;
+};
+
+export type CreateMenuTemplateBody = {
+  name: string;
+  category?: string;
+  pricingType?: string;
+  packagePrice?: number;
+};
+
+export type CreatePaymentBody = {
+  relatedType: string;
+  relatedId: number;
+  date?: string;
+  paymentAmount: number;
+  paymentMethod?: string;
+  paymentType?: string;
+  description?: string;
+  salesperson?: string;
+};
+
+export type CreateDepositBody = {
+  relatedType: string;
+  relatedId: number;
+  date?: string;
+  amount: number;
+  description?: string;
+  salesperson?: string;
+};
+
+export type CreateAdjustmentBody = {
+  functionId: number;
+  date?: string;
+  amount: number;
+  revenueCenterId?: number;
+  appliedRates?: string;
+  description?: string;
+  salesperson?: string;
 };
 

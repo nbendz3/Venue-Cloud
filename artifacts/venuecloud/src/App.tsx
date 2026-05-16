@@ -9,6 +9,9 @@ import Dashboard from "@/pages/Dashboard";
 import EventsList from "@/pages/events/EventsList";
 import EventCalendar from "@/pages/events/EventCalendar";
 import EventDetail from "@/pages/events/EventDetail";
+import EventFinancials from "@/pages/events/EventFinancials";
+import FunctionServices from "@/pages/events/FunctionServices";
+import FunctionFinancials from "@/pages/events/FunctionFinancials";
 import LeadsList from "@/pages/leads/LeadsList";
 import LeadDetail from "@/pages/leads/LeadDetail";
 import AccountsList from "@/pages/accounts/AccountsList";
@@ -30,6 +33,10 @@ function Router() {
         
         <Route path="/events" component={EventsList} />
         <Route path="/events/calendar" component={EventCalendar} />
+        {/* Function sub-pages must come before /events/:id so wouter matches correctly */}
+        <Route path="/events/:id/financials" component={EventFinancials} />
+        <Route path="/events/:id/functions/:functionId/services" component={FunctionServices} />
+        <Route path="/events/:id/functions/:functionId/financials" component={FunctionFinancials} />
         <Route path="/events/:id" component={EventDetail} />
         
         <Route path="/leads" component={LeadsList} />

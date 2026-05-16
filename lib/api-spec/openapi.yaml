@@ -35,6 +35,16 @@ tags:
     description: Calendar
   - name: dashboard
     description: Dashboard summaries
+  - name: function-services
+    description: BEO Builder / Function Services
+  - name: financials
+    description: Event and Function Financial Details
+  - name: revenue-centers
+    description: Revenue centers
+  - name: service-fees
+    description: Service fees
+  - name: payments
+    description: Payments
 
 paths:
   /healthz:
@@ -1097,6 +1107,682 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CalendarEvent"
+
+  # Function Services (BEO Builder)
+  /functions/{id}/menus:
+    get:
+      operationId: getFunctionMenus
+      tags: [function-services]
+      summary: Get all menus for a function
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of function menus with service types and items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FunctionMenu"
+    post:
+      operationId: createFunctionMenu
+      tags: [function-services]
+      summary: Create a new menu for a function
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                functionMenuName:
+                  type: string
+                pricingType:
+                  type: string
+                description:
+                  type: string
+                menuNotes:
+                  type: string
+              required:
+                - functionMenuName
+      responses:
+        "201":
+          description: Menu created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionMenu"
+
+  /functions/{id}/add-menu-template:
+    post:
+      operationId: addMenuTemplate
+      tags: [function-services]
+      summary: Copy a menu template to a function
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                templateId:
+                  type: integer
+              required:
+                - templateId
+      responses:
+        "201":
+          description: Menu copied from template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionMenu"
+
+  /function-menus/{id}:
+    get:
+      operationId: getFunctionMenu
+      tags: [function-services]
+      summary: Get a function menu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Function menu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionMenu"
+    put:
+      operationId: updateFunctionMenu
+      tags: [function-services]
+      summary: Update a function menu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                functionMenuName:
+                  type: string
+                pricingType:
+                  type: string
+                autoCalculateQuantity:
+                  type: boolean
+                numberRequired:
+                  type: integer
+                perNumberOfGuests:
+                  type: integer
+                menuNotes:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Updated menu
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionMenu"
+    delete:
+      operationId: deleteFunctionMenu
+      tags: [function-services]
+      summary: Delete a function menu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /function-menus/{id}/service-types:
+    get:
+      operationId: getServiceTypes
+      tags: [function-services]
+      summary: Get service types for a menu
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceType"
+    post:
+      operationId: createServiceType
+      tags: [function-services]
+      summary: Create a service type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serviceTypeName:
+                  type: string
+                description:
+                  type: string
+                serviceNotes:
+                  type: string
+                maxSelections:
+                  type: integer
+              required:
+                - serviceTypeName
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceType"
+
+  /service-types/{id}:
+    put:
+      operationId: updateServiceType
+      tags: [function-services]
+      summary: Update a service type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serviceTypeName:
+                  type: string
+                description:
+                  type: string
+                serviceNotes:
+                  type: string
+                maxSelections:
+                  type: integer
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceType"
+    delete:
+      operationId: deleteServiceType
+      tags: [function-services]
+      summary: Delete a service type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /service-types/{id}/items:
+    get:
+      operationId: getServiceItems
+      tags: [function-services]
+      summary: Get items for a service type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceItem"
+    post:
+      operationId: createServiceItem
+      tags: [function-services]
+      summary: Create a service item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                itemName:
+                  type: string
+                description:
+                  type: string
+                notes:
+                  type: string
+                quantity:
+                  type: number
+                aLaCartePrice:
+                  type: number
+                addOnPrice:
+                  type: number
+                cost:
+                  type: number
+                revenueCenterId:
+                  type: integer
+                appliedRates:
+                  type: string
+                category:
+                  type: string
+              required:
+                - itemName
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceItem"
+
+  /service-items/{id}:
+    put:
+      operationId: updateServiceItem
+      tags: [function-services]
+      summary: Update a service item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                itemName:
+                  type: string
+                description:
+                  type: string
+                notes:
+                  type: string
+                quantity:
+                  type: number
+                aLaCartePrice:
+                  type: number
+                addOnPrice:
+                  type: number
+                cost:
+                  type: number
+                revenueCenterId:
+                  type: integer
+                appliedRates:
+                  type: string
+                category:
+                  type: string
+                chargeHourly:
+                  type: boolean
+                numHours:
+                  type: number
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceItem"
+    delete:
+      operationId: deleteServiceItem
+      tags: [function-services]
+      summary: Delete a service item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /menu-templates:
+    get:
+      operationId: getMenuTemplates
+      tags: [function-services]
+      summary: Get menu templates library
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Menu templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuTemplate"
+    post:
+      operationId: createMenuTemplate
+      tags: [function-services]
+      summary: Create a menu template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                category:
+                  type: string
+                pricingType:
+                  type: string
+                packagePrice:
+                  type: number
+              required:
+                - name
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuTemplate"
+
+  # Revenue Centers
+  /revenue-centers:
+    get:
+      operationId: getRevenueCenters
+      tags: [revenue-centers]
+      summary: Get all revenue centers
+      responses:
+        "200":
+          description: Revenue centers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RevenueCenter"
+
+  # Service Fees
+  /service-fees:
+    get:
+      operationId: getServiceFees
+      tags: [service-fees]
+      summary: Get all service fees
+      responses:
+        "200":
+          description: Service fees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceFee"
+
+  # Payments
+  /payments:
+    post:
+      operationId: createPayment
+      tags: [payments]
+      summary: Record a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                relatedType:
+                  type: string
+                relatedId:
+                  type: integer
+                date:
+                  type: string
+                paymentAmount:
+                  type: number
+                paymentMethod:
+                  type: string
+                paymentType:
+                  type: string
+                description:
+                  type: string
+                salesperson:
+                  type: string
+              required:
+                - relatedType
+                - relatedId
+                - paymentAmount
+      responses:
+        "201":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/{id}:
+    delete:
+      operationId: deletePayment
+      tags: [payments]
+      summary: Delete a payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Deposits
+  /deposits:
+    post:
+      operationId: createDeposit
+      tags: [payments]
+      summary: Schedule a deposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                relatedType:
+                  type: string
+                relatedId:
+                  type: integer
+                date:
+                  type: string
+                amount:
+                  type: number
+                description:
+                  type: string
+                salesperson:
+                  type: string
+              required:
+                - relatedType
+                - relatedId
+                - amount
+      responses:
+        "201":
+          description: Deposit scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositScheduled"
+
+  # Adjustments
+  /adjustments:
+    post:
+      operationId: createAdjustment
+      tags: [financials]
+      summary: Create an adjustment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                functionId:
+                  type: integer
+                date:
+                  type: string
+                amount:
+                  type: number
+                revenueCenterId:
+                  type: integer
+                appliedRates:
+                  type: string
+                description:
+                  type: string
+                salesperson:
+                  type: string
+              required:
+                - functionId
+                - amount
+      responses:
+        "201":
+          description: Adjustment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Adjustment"
+
+  /adjustments/{id}:
+    delete:
+      operationId: deleteAdjustment
+      tags: [financials]
+      summary: Delete an adjustment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # Event & Function Financials
+  /events/{id}/financials:
+    get:
+      operationId: getEventFinancials
+      tags: [financials]
+      summary: Get event financial details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event financials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventFinancials"
+
+  /functions/{id}/financials:
+    get:
+      operationId: getFunctionFinancials
+      tags: [financials]
+      summary: Get function financial details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Function financials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionFinancials"
+
+  /functions/{id}/post:
+    post:
+      operationId: postFunction
+      tags: [financials]
+      summary: Post a function (lock financial figures)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Function posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FunctionLifecycleHistory"
 
 components:
   schemas:
@@ -2254,3 +2940,524 @@ components:
         - id
         - eventName
         - eventStatus
+
+    MenuTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        menuNumber:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        pricingType:
+          type: ["string", "null"]
+        packagePrice:
+          type: ["string", "null"]
+        packageCost:
+          type: ["string", "null"]
+        useInclusivePricing:
+          type: ["boolean", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+
+    ServiceItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        serviceTypeId:
+          type: integer
+        itemName:
+          type: string
+        description:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        notesInternal:
+          type: ["boolean", "null"]
+        quantity:
+          type: ["string", "null"]
+        autoQuantity:
+          type: ["boolean", "null"]
+        aLaCartePrice:
+          type: ["string", "null"]
+        addOnPrice:
+          type: ["string", "null"]
+        cost:
+          type: ["string", "null"]
+        numberRequired:
+          type: ["integer", "null"]
+        perNumberOfGuests:
+          type: ["integer", "null"]
+        quantityPrecision:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        categorySubOption:
+          type: ["string", "null"]
+        categoryIi:
+          type: ["string", "null"]
+        markItemInternal:
+          type: ["boolean", "null"]
+        chargeHourly:
+          type: ["boolean", "null"]
+        numHours:
+          type: ["string", "null"]
+        revenueCenterId:
+          type: ["integer", "null"]
+        appliedRates:
+          type: ["string", "null"]
+        itemTotal:
+          type: ["string", "null"]
+        revenueCenterName:
+          type: ["string", "null"]
+      required:
+        - id
+        - serviceTypeId
+        - itemName
+
+    ServiceType:
+      type: object
+      properties:
+        id:
+          type: integer
+        functionMenuId:
+          type: integer
+        serviceTypeName:
+          type: string
+        startTime:
+          type: ["string", "null"]
+        endTime:
+          type: ["string", "null"]
+        serviceLocation:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        serviceNotes:
+          type: ["string", "null"]
+        notesInternal:
+          type: ["boolean", "null"]
+        maxSelections:
+          type: ["integer", "null"]
+        displayOrder:
+          type: ["integer", "null"]
+        serviceTypeTotalCharges:
+          type: ["string", "null"]
+        serviceTypeTotalCost:
+          type: ["string", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceItem"
+      required:
+        - id
+        - functionMenuId
+        - serviceTypeName
+
+    FunctionMenu:
+      type: object
+      properties:
+        id:
+          type: integer
+        functionId:
+          type: integer
+        templateId:
+          type: ["integer", "null"]
+        functionMenuName:
+          type: string
+        pricingType:
+          type: ["string", "null"]
+        autoCalculateQuantity:
+          type: ["boolean", "null"]
+        numberRequired:
+          type: ["integer", "null"]
+        perNumberOfGuests:
+          type: ["integer", "null"]
+        menuQuantity:
+          type: ["string", "null"]
+        menuTotalCharges:
+          type: ["string", "null"]
+        menuTotalCost:
+          type: ["string", "null"]
+        menuLocation:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        menuNotes:
+          type: ["string", "null"]
+        serviceTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceType"
+      required:
+        - id
+        - functionId
+        - functionMenuName
+
+    RevenueCenter:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        salesTaxRate:
+          type: ["string", "null"]
+        occupancyTaxRate:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+
+    ServiceFee:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        ratePercent:
+          type: ["string", "null"]
+        isTaxable:
+          type: ["boolean", "null"]
+        salesTaxRate:
+          type: ["string", "null"]
+        occupancyTaxRate:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        date:
+          type: ["string", "null"]
+        paymentAmount:
+          type: ["string", "null"]
+        allocatedAmount:
+          type: ["string", "null"]
+        paymentMethod:
+          type: ["string", "null"]
+        paymentType:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        posted:
+          type: ["boolean", "null"]
+        isEventPayment:
+          type: ["boolean", "null"]
+        fromGateway:
+          type: ["boolean", "null"]
+      required:
+        - id
+        - relatedType
+        - relatedId
+
+    Adjustment:
+      type: object
+      properties:
+        id:
+          type: integer
+        functionId:
+          type: integer
+        date:
+          type: ["string", "null"]
+        amount:
+          type: ["string", "null"]
+        revenueCenterId:
+          type: ["integer", "null"]
+        appliedRates:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        revenueCenterName:
+          type: ["string", "null"]
+      required:
+        - id
+        - functionId
+
+    AdditionalFee:
+      type: object
+      properties:
+        id:
+          type: integer
+        functionId:
+          type: integer
+        date:
+          type: ["string", "null"]
+        amount:
+          type: ["string", "null"]
+        serviceFeeId:
+          type: ["integer", "null"]
+        description:
+          type: ["string", "null"]
+        revenueCenterId:
+          type: ["integer", "null"]
+        salesperson:
+          type: ["string", "null"]
+        serviceFeeName:
+          type: ["string", "null"]
+        revenueCenterName:
+          type: ["string", "null"]
+      required:
+        - id
+        - functionId
+
+    DepositScheduled:
+      type: object
+      properties:
+        id:
+          type: integer
+        relatedType:
+          type: string
+        relatedId:
+          type: integer
+        date:
+          type: ["string", "null"]
+        amount:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        hasTask:
+          type: ["boolean", "null"]
+      required:
+        - id
+        - relatedType
+        - relatedId
+
+    FunctionLifecycleHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+        functionId:
+          type: integer
+        eventStatus:
+          type: string
+        date:
+          type: ["string", "null"]
+        salesperson:
+          type: ["string", "null"]
+        forecastedCharges:
+          type: ["string", "null"]
+        charges:
+          type: ["string", "null"]
+        adjustedCharges:
+          type: ["string", "null"]
+        cost:
+          type: ["string", "null"]
+        margin:
+          type: ["string", "null"]
+        marginPercent:
+          type: ["string", "null"]
+      required:
+        - id
+        - functionId
+        - eventStatus
+
+    EventFinancials:
+      type: object
+      properties:
+        eventId:
+          type: integer
+        eventName:
+          type: string
+        functions:
+          type: array
+          items:
+            type: object
+            properties:
+              functionId:
+                type: integer
+              functionType:
+                type: string
+              functionDate:
+                type: ["string", "null"]
+              charges:
+                type: number
+              adjustedCharges:
+                type: number
+              salesTax:
+                type: number
+              occupancyTax:
+                type: number
+              gratuity:
+                type: number
+              total:
+                type: number
+              cost:
+                type: number
+              margin:
+                type: number
+              marginPercent:
+                type: number
+            required:
+              - functionId
+              - functionType
+              - charges
+              - total
+        totals:
+          type: object
+          properties:
+            charges:
+              type: number
+            adjustedCharges:
+              type: number
+            salesTax:
+              type: number
+            occupancyTax:
+              type: number
+            gratuity:
+              type: number
+            total:
+              type: number
+            cost:
+              type: number
+            margin:
+              type: number
+            marginPercent:
+              type: number
+          required:
+            - total
+        paymentsReceived:
+          type: number
+        balanceDue:
+          type: number
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        depositsScheduled:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepositScheduled"
+        taxRates:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevenueCenter"
+        serviceFees:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceFee"
+      required:
+        - eventId
+        - eventName
+        - functions
+        - totals
+        - paymentsReceived
+        - balanceDue
+
+    FunctionFinancials:
+      type: object
+      properties:
+        functionId:
+          type: integer
+        functionType:
+          type: string
+        functionDate:
+          type: ["string", "null"]
+        revenueBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              revenueCenterName:
+                type: string
+              charges:
+                type: number
+              adjustments:
+                type: number
+              adjustedCharges:
+                type: number
+              salesTax:
+                type: number
+              occupancyTax:
+                type: number
+              gratuity:
+                type: number
+              total:
+                type: number
+              cost:
+                type: number
+              margin:
+                type: number
+              marginPercent:
+                type: number
+            required:
+              - revenueCenterName
+              - total
+        totals:
+          type: object
+          properties:
+            charges:
+              type: number
+            adjustedCharges:
+              type: number
+            salesTax:
+              type: number
+            occupancyTax:
+              type: number
+            gratuity:
+              type: number
+            total:
+              type: number
+            cost:
+              type: number
+            margin:
+              type: number
+            marginPercent:
+              type: number
+          required:
+            - total
+        paymentsReceived:
+          type: number
+        balanceDue:
+          type: number
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        adjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Adjustment"
+        additionalFees:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdditionalFee"
+        depositsScheduled:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepositScheduled"
+        lifecycleHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunctionLifecycleHistory"
+      required:
+        - functionId
+        - functionType
+        - revenueBreakdown
+        - totals
+        - paymentsReceived
+        - balanceDue

@@ -1,12 +1,19 @@
-import { useGetEvent } from "@workspace/api-client-react";
+import { useGetEvent, useListEventFunctions } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Edit, MoreHorizontal, DollarSign, Utensils, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStatusColor } from "./EventsList";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const SECTIONS = [
   "Event Details", "Billing Details", "Functions", "Guest Room Blocks", 
@@ -19,7 +26,8 @@ const SECTIONS = [
 export default function EventDetail() {
   const params = useParams();
   const eventId = Number(params.id);
-  const { data: event, isLoading } = useGetEvent(eventId, { query: { enabled: !!eventId } });
+  const { data: event, isLoading } = useGetEvent(eventId, { query: { enabled: !!eventId } as any });
+  const { data: functions } = useListEventFunctions(eventId, { query: { enabled: !!eventId } as any });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;
@@ -50,6 +58,13 @@ export default function EventDetail() {
               {section}
             </a>
           ))}
+          <div className="border-t my-2" />
+          <Link
+            href={`/events/${eventId}/financials`}
+            className="block px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+          >
+            <DollarSign className="w-3.5 h-3.5" /> Financial Details
+          </Link>
         </div>
       </div>
 
@@ -63,6 +78,11 @@ export default function EventDetail() {
             </Badge>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/events/${eventId}/financials`}>
+                <DollarSign className="w-4 h-4 mr-1" /> Financial Details
+              </Link>
+            </Button>
             <Button variant="outline" size="sm"><Edit className="w-4 h-4 mr-2" /> Edit</Button>
             <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
           </div>
@@ -131,10 +151,72 @@ export default function EventDetail() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Section 2: Functions */}
+            <div id="section-2" className="scroll-mt-6">
+              <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Functions</h2>
+              <Card>
+                <CardContent className="p-0">
+                  {functions && functions.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Function</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Location</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Attendance</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {functions.map((fn: any) => (
+                          <TableRow key={fn.id}>
+                            <TableCell className="font-medium">
+                              {fn.functionNumber || `#${fn.id}`}
+                            </TableCell>
+                            <TableCell>{fn.functionType || '—'}</TableCell>
+                            <TableCell className="text-sm">{fn.functionDate || '—'}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {fn.startTime && fn.endTime ? `${fn.startTime} – ${fn.endTime}` : fn.startTime || '—'}
+                            </TableCell>
+                            <TableCell className="text-sm">{fn.location || '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">{fn.functionStatus || 'Active'}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{fn.expectedAttendance || '—'}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button size="sm" variant="ghost" asChild title="BEO / Services">
+                                  <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
+                                    <Utensils className="w-3.5 h-3.5" />
+                                  </Link>
+                                </Button>
+                                <Button size="sm" variant="ghost" asChild title="Financials">
+                                  <Link href={`/events/${eventId}/functions/${fn.id}/financials`}>
+                                    <DollarSign className="w-3.5 h-3.5" />
+                                  </Link>
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      No functions added to this event yet.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
             
-            {/* Additional sections would map here... rendering placeholders to show structure */}
-            {SECTIONS.slice(2).map((section, idx) => (
-              <div key={section} id={`section-${idx+2}`} className="scroll-mt-6 opacity-60">
+            {/* Remaining sections — placeholders */}
+            {SECTIONS.slice(3).map((section, idx) => (
+              <div key={section} id={`section-${idx+3}`} className="scroll-mt-6 opacity-60">
                 <h2 className="text-lg font-semibold mb-4 pb-2 border-b">{section}</h2>
                 <Card className="bg-muted/30 border-dashed">
                   <CardContent className="p-8 text-center text-muted-foreground text-sm">

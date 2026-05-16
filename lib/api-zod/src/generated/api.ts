@@ -1442,3 +1442,813 @@ export const GetCalendarEventsResponseItem = zod.object({
 export const GetCalendarEventsResponse = zod.array(GetCalendarEventsResponseItem)
 
 
+/**
+ * @summary Get all menus for a function
+ */
+export const GetFunctionMenusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetFunctionMenusResponseItem = zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "functionMenuName": zod.string(),
+  "pricingType": zod.string().nullish(),
+  "autoCalculateQuantity": zod.boolean().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "menuQuantity": zod.string().nullish(),
+  "menuTotalCharges": zod.string().nullish(),
+  "menuTotalCost": zod.string().nullish(),
+  "menuLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "menuNotes": zod.string().nullish(),
+  "serviceTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "functionMenuId": zod.number(),
+  "serviceTypeName": zod.string(),
+  "startTime": zod.string().nullish(),
+  "endTime": zod.string().nullish(),
+  "serviceLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "serviceNotes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "maxSelections": zod.number().nullish(),
+  "displayOrder": zod.number().nullish(),
+  "serviceTypeTotalCharges": zod.string().nullish(),
+  "serviceTypeTotalCost": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional()
+})).optional()
+})
+export const GetFunctionMenusResponse = zod.array(GetFunctionMenusResponseItem)
+
+
+/**
+ * @summary Create a new menu for a function
+ */
+export const CreateFunctionMenuParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateFunctionMenuBody = zod.object({
+  "functionMenuName": zod.string(),
+  "pricingType": zod.string().optional(),
+  "description": zod.string().optional(),
+  "menuNotes": zod.string().optional()
+})
+
+
+/**
+ * @summary Copy a menu template to a function
+ */
+export const AddMenuTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddMenuTemplateBody = zod.object({
+  "templateId": zod.number()
+})
+
+
+/**
+ * @summary Get a function menu
+ */
+export const GetFunctionMenuParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetFunctionMenuResponse = zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "functionMenuName": zod.string(),
+  "pricingType": zod.string().nullish(),
+  "autoCalculateQuantity": zod.boolean().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "menuQuantity": zod.string().nullish(),
+  "menuTotalCharges": zod.string().nullish(),
+  "menuTotalCost": zod.string().nullish(),
+  "menuLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "menuNotes": zod.string().nullish(),
+  "serviceTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "functionMenuId": zod.number(),
+  "serviceTypeName": zod.string(),
+  "startTime": zod.string().nullish(),
+  "endTime": zod.string().nullish(),
+  "serviceLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "serviceNotes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "maxSelections": zod.number().nullish(),
+  "displayOrder": zod.number().nullish(),
+  "serviceTypeTotalCharges": zod.string().nullish(),
+  "serviceTypeTotalCost": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Update a function menu
+ */
+export const UpdateFunctionMenuParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateFunctionMenuBody = zod.object({
+  "functionMenuName": zod.string().optional(),
+  "pricingType": zod.string().optional(),
+  "autoCalculateQuantity": zod.boolean().optional(),
+  "numberRequired": zod.number().optional(),
+  "perNumberOfGuests": zod.number().optional(),
+  "menuNotes": zod.string().optional(),
+  "description": zod.string().optional()
+})
+
+export const UpdateFunctionMenuResponse = zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "templateId": zod.number().nullish(),
+  "functionMenuName": zod.string(),
+  "pricingType": zod.string().nullish(),
+  "autoCalculateQuantity": zod.boolean().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "menuQuantity": zod.string().nullish(),
+  "menuTotalCharges": zod.string().nullish(),
+  "menuTotalCost": zod.string().nullish(),
+  "menuLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "menuNotes": zod.string().nullish(),
+  "serviceTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "functionMenuId": zod.number(),
+  "serviceTypeName": zod.string(),
+  "startTime": zod.string().nullish(),
+  "endTime": zod.string().nullish(),
+  "serviceLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "serviceNotes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "maxSelections": zod.number().nullish(),
+  "displayOrder": zod.number().nullish(),
+  "serviceTypeTotalCharges": zod.string().nullish(),
+  "serviceTypeTotalCost": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a function menu
+ */
+export const DeleteFunctionMenuParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get service types for a menu
+ */
+export const GetServiceTypesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetServiceTypesResponseItem = zod.object({
+  "id": zod.number(),
+  "functionMenuId": zod.number(),
+  "serviceTypeName": zod.string(),
+  "startTime": zod.string().nullish(),
+  "endTime": zod.string().nullish(),
+  "serviceLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "serviceNotes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "maxSelections": zod.number().nullish(),
+  "displayOrder": zod.number().nullish(),
+  "serviceTypeTotalCharges": zod.string().nullish(),
+  "serviceTypeTotalCost": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional()
+})
+export const GetServiceTypesResponse = zod.array(GetServiceTypesResponseItem)
+
+
+/**
+ * @summary Create a service type
+ */
+export const CreateServiceTypeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateServiceTypeBody = zod.object({
+  "serviceTypeName": zod.string(),
+  "description": zod.string().optional(),
+  "serviceNotes": zod.string().optional(),
+  "maxSelections": zod.number().optional()
+})
+
+
+/**
+ * @summary Update a service type
+ */
+export const UpdateServiceTypeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateServiceTypeBody = zod.object({
+  "serviceTypeName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "serviceNotes": zod.string().optional(),
+  "maxSelections": zod.number().optional()
+})
+
+export const UpdateServiceTypeResponse = zod.object({
+  "id": zod.number(),
+  "functionMenuId": zod.number(),
+  "serviceTypeName": zod.string(),
+  "startTime": zod.string().nullish(),
+  "endTime": zod.string().nullish(),
+  "serviceLocation": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "serviceNotes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "maxSelections": zod.number().nullish(),
+  "displayOrder": zod.number().nullish(),
+  "serviceTypeTotalCharges": zod.string().nullish(),
+  "serviceTypeTotalCost": zod.string().nullish(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Delete a service type
+ */
+export const DeleteServiceTypeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get items for a service type
+ */
+export const GetServiceItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetServiceItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})
+export const GetServiceItemsResponse = zod.array(GetServiceItemsResponseItem)
+
+
+/**
+ * @summary Create a service item
+ */
+export const CreateServiceItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateServiceItemBody = zod.object({
+  "itemName": zod.string(),
+  "description": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "aLaCartePrice": zod.number().optional(),
+  "addOnPrice": zod.number().optional(),
+  "cost": zod.number().optional(),
+  "revenueCenterId": zod.number().optional(),
+  "appliedRates": zod.string().optional(),
+  "category": zod.string().optional()
+})
+
+
+/**
+ * @summary Update a service item
+ */
+export const UpdateServiceItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateServiceItemBody = zod.object({
+  "itemName": zod.string().optional(),
+  "description": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "quantity": zod.number().optional(),
+  "aLaCartePrice": zod.number().optional(),
+  "addOnPrice": zod.number().optional(),
+  "cost": zod.number().optional(),
+  "revenueCenterId": zod.number().optional(),
+  "appliedRates": zod.string().optional(),
+  "category": zod.string().optional(),
+  "chargeHourly": zod.boolean().optional(),
+  "numHours": zod.number().optional()
+})
+
+export const UpdateServiceItemResponse = zod.object({
+  "id": zod.number(),
+  "serviceTypeId": zod.number(),
+  "itemName": zod.string(),
+  "description": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "notesInternal": zod.boolean().nullish(),
+  "quantity": zod.string().nullish(),
+  "autoQuantity": zod.boolean().nullish(),
+  "aLaCartePrice": zod.string().nullish(),
+  "addOnPrice": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "numberRequired": zod.number().nullish(),
+  "perNumberOfGuests": zod.number().nullish(),
+  "quantityPrecision": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categorySubOption": zod.string().nullish(),
+  "categoryIi": zod.string().nullish(),
+  "markItemInternal": zod.boolean().nullish(),
+  "chargeHourly": zod.boolean().nullish(),
+  "numHours": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "itemTotal": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a service item
+ */
+export const DeleteServiceItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get menu templates library
+ */
+export const GetMenuTemplatesQueryParams = zod.object({
+  "category": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const GetMenuTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "menuNumber": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "pricingType": zod.string().nullish(),
+  "packagePrice": zod.string().nullish(),
+  "packageCost": zod.string().nullish(),
+  "useInclusivePricing": zod.boolean().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+export const GetMenuTemplatesResponse = zod.array(GetMenuTemplatesResponseItem)
+
+
+/**
+ * @summary Create a menu template
+ */
+export const CreateMenuTemplateBody = zod.object({
+  "name": zod.string(),
+  "category": zod.string().optional(),
+  "pricingType": zod.string().optional(),
+  "packagePrice": zod.number().optional()
+})
+
+
+/**
+ * @summary Get all revenue centers
+ */
+export const GetRevenueCentersResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "salesTaxRate": zod.string().nullish(),
+  "occupancyTaxRate": zod.string().nullish()
+})
+export const GetRevenueCentersResponse = zod.array(GetRevenueCentersResponseItem)
+
+
+/**
+ * @summary Get all service fees
+ */
+export const GetServiceFeesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "ratePercent": zod.string().nullish(),
+  "isTaxable": zod.boolean().nullish(),
+  "salesTaxRate": zod.string().nullish(),
+  "occupancyTaxRate": zod.string().nullish()
+})
+export const GetServiceFeesResponse = zod.array(GetServiceFeesResponseItem)
+
+
+/**
+ * @summary Record a payment
+ */
+export const CreatePaymentBody = zod.object({
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().optional(),
+  "paymentAmount": zod.number(),
+  "paymentMethod": zod.string().optional(),
+  "paymentType": zod.string().optional(),
+  "description": zod.string().optional(),
+  "salesperson": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete a payment
+ */
+export const DeletePaymentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Schedule a deposit
+ */
+export const CreateDepositBody = zod.object({
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().optional(),
+  "amount": zod.number(),
+  "description": zod.string().optional(),
+  "salesperson": zod.string().optional()
+})
+
+
+/**
+ * @summary Create an adjustment
+ */
+export const CreateAdjustmentBody = zod.object({
+  "functionId": zod.number(),
+  "date": zod.string().optional(),
+  "amount": zod.number(),
+  "revenueCenterId": zod.number().optional(),
+  "appliedRates": zod.string().optional(),
+  "description": zod.string().optional(),
+  "salesperson": zod.string().optional()
+})
+
+
+/**
+ * @summary Delete an adjustment
+ */
+export const DeleteAdjustmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary Get event financial details
+ */
+export const GetEventFinancialsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetEventFinancialsResponse = zod.object({
+  "eventId": zod.number(),
+  "eventName": zod.string(),
+  "functions": zod.array(zod.object({
+  "functionId": zod.number(),
+  "functionType": zod.string(),
+  "functionDate": zod.string().nullish(),
+  "charges": zod.number(),
+  "adjustedCharges": zod.number().optional(),
+  "salesTax": zod.number().optional(),
+  "occupancyTax": zod.number().optional(),
+  "gratuity": zod.number().optional(),
+  "total": zod.number(),
+  "cost": zod.number().optional(),
+  "margin": zod.number().optional(),
+  "marginPercent": zod.number().optional()
+})),
+  "totals": zod.object({
+  "charges": zod.number().optional(),
+  "adjustedCharges": zod.number().optional(),
+  "salesTax": zod.number().optional(),
+  "occupancyTax": zod.number().optional(),
+  "gratuity": zod.number().optional(),
+  "total": zod.number(),
+  "cost": zod.number().optional(),
+  "margin": zod.number().optional(),
+  "marginPercent": zod.number().optional()
+}),
+  "paymentsReceived": zod.number(),
+  "balanceDue": zod.number(),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().nullish(),
+  "paymentAmount": zod.string().nullish(),
+  "allocatedAmount": zod.string().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "paymentType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "posted": zod.boolean().nullish(),
+  "isEventPayment": zod.boolean().nullish(),
+  "fromGateway": zod.boolean().nullish()
+})).optional(),
+  "depositsScheduled": zod.array(zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().nullish(),
+  "amount": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "hasTask": zod.boolean().nullish()
+})).optional(),
+  "taxRates": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "salesTaxRate": zod.string().nullish(),
+  "occupancyTaxRate": zod.string().nullish()
+})).optional(),
+  "serviceFees": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "ratePercent": zod.string().nullish(),
+  "isTaxable": zod.boolean().nullish(),
+  "salesTaxRate": zod.string().nullish(),
+  "occupancyTaxRate": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Get function financial details
+ */
+export const GetFunctionFinancialsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetFunctionFinancialsResponse = zod.object({
+  "functionId": zod.number(),
+  "functionType": zod.string(),
+  "functionDate": zod.string().nullish(),
+  "revenueBreakdown": zod.array(zod.object({
+  "revenueCenterName": zod.string(),
+  "charges": zod.number().optional(),
+  "adjustments": zod.number().optional(),
+  "adjustedCharges": zod.number().optional(),
+  "salesTax": zod.number().optional(),
+  "occupancyTax": zod.number().optional(),
+  "gratuity": zod.number().optional(),
+  "total": zod.number(),
+  "cost": zod.number().optional(),
+  "margin": zod.number().optional(),
+  "marginPercent": zod.number().optional()
+})),
+  "totals": zod.object({
+  "charges": zod.number().optional(),
+  "adjustedCharges": zod.number().optional(),
+  "salesTax": zod.number().optional(),
+  "occupancyTax": zod.number().optional(),
+  "gratuity": zod.number().optional(),
+  "total": zod.number(),
+  "cost": zod.number().optional(),
+  "margin": zod.number().optional(),
+  "marginPercent": zod.number().optional()
+}),
+  "paymentsReceived": zod.number(),
+  "balanceDue": zod.number(),
+  "payments": zod.array(zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().nullish(),
+  "paymentAmount": zod.string().nullish(),
+  "allocatedAmount": zod.string().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "paymentType": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "posted": zod.boolean().nullish(),
+  "isEventPayment": zod.boolean().nullish(),
+  "fromGateway": zod.boolean().nullish()
+})).optional(),
+  "adjustments": zod.array(zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "date": zod.string().nullish(),
+  "amount": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "appliedRates": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional(),
+  "additionalFees": zod.array(zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "date": zod.string().nullish(),
+  "amount": zod.string().nullish(),
+  "serviceFeeId": zod.number().nullish(),
+  "description": zod.string().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "salesperson": zod.string().nullish(),
+  "serviceFeeName": zod.string().nullish(),
+  "revenueCenterName": zod.string().nullish()
+})).optional(),
+  "depositsScheduled": zod.array(zod.object({
+  "id": zod.number(),
+  "relatedType": zod.string(),
+  "relatedId": zod.number(),
+  "date": zod.string().nullish(),
+  "amount": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "hasTask": zod.boolean().nullish()
+})).optional(),
+  "lifecycleHistory": zod.array(zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "eventStatus": zod.string(),
+  "date": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "forecastedCharges": zod.string().nullish(),
+  "charges": zod.string().nullish(),
+  "adjustedCharges": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "margin": zod.string().nullish(),
+  "marginPercent": zod.string().nullish()
+})).optional()
+})
+
+
+/**
+ * @summary Post a function (lock financial figures)
+ */
+export const PostFunctionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PostFunctionResponse = zod.object({
+  "id": zod.number(),
+  "functionId": zod.number(),
+  "eventStatus": zod.string(),
+  "date": zod.string().nullish(),
+  "salesperson": zod.string().nullish(),
+  "forecastedCharges": zod.string().nullish(),
+  "charges": zod.string().nullish(),
+  "adjustedCharges": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "margin": zod.string().nullish(),
+  "marginPercent": zod.string().nullish()
+})
+
+
