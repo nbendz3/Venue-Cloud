@@ -40,7 +40,9 @@ export default function ContactDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline"><Edit className="w-4 h-4 mr-2" /> Edit</Button>
+          <Button variant="outline" asChild>
+            <Link href={`/contacts/${contactId}/edit`}><Edit className="w-4 h-4 mr-2" /> Edit</Link>
+          </Button>
           <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
         </div>
       </header>

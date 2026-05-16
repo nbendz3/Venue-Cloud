@@ -1,5 +1,5 @@
 import { useListTasks, useUpdateTask, getListTasksQueryKey } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +34,8 @@ export default function TasksList() {
           <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground">Manage your activities and to-dos.</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          New Task
+        <Button asChild>
+          <Link href="/tasks/new"><Plus className="w-4 h-4 mr-2" />New Task</Link>
         </Button>
       </div>
 

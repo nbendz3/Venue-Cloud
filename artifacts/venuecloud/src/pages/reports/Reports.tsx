@@ -155,9 +155,14 @@ export default function ReportsPage() {
             <p className="text-sm text-gray-500">{reports.length} reports in library</p>
           </div>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-2" />New Report
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/reports/scheduled-jobs">
+            <Button variant="outline"><BarChart2 className="h-4 w-4 mr-2" />View Scheduled Report Jobs</Button>
+          </Link>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" />New Report
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-3 mb-4">

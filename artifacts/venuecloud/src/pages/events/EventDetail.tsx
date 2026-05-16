@@ -85,7 +85,9 @@ export default function EventDetail() {
                 <DollarSign className="w-4 h-4 mr-1" /> Financial Details
               </Link>
             </Button>
-            <Button variant="outline" size="sm"><Edit className="w-4 h-4 mr-2" /> Edit</Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/events/${eventId}/edit`}><Edit className="w-4 h-4 mr-2" /> Edit</Link>
+            </Button>
             <EventMoreActions
               eventId={eventId}
               eventName={event.eventName}

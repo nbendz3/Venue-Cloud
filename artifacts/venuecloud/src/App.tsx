@@ -10,26 +10,45 @@ import Dashboard from "@/pages/Dashboard";
 import EventsList from "@/pages/events/EventsList";
 import EventCalendar from "@/pages/events/EventCalendar";
 import EventDetail from "@/pages/events/EventDetail";
+import EventEdit from "@/pages/events/EventEdit";
 import EventFinancials from "@/pages/events/EventFinancials";
 import FunctionServices from "@/pages/events/FunctionServices";
 import FunctionFinancials from "@/pages/events/FunctionFinancials";
+
 import LeadsList from "@/pages/leads/LeadsList";
 import LeadDetail from "@/pages/leads/LeadDetail";
+import LeadEdit from "@/pages/leads/LeadEdit";
+
 import AccountsList from "@/pages/accounts/AccountsList";
 import AccountDetail from "@/pages/accounts/AccountDetail";
+import AccountEdit from "@/pages/accounts/AccountEdit";
+
 import ContactsList from "@/pages/contacts/ContactsList";
 import ContactDetail from "@/pages/contacts/ContactDetail";
+import ContactEdit from "@/pages/contacts/ContactEdit";
+
 import TasksList from "@/pages/tasks/TasksList";
+import TaskEdit from "@/pages/tasks/TaskEdit";
+
+import AppointmentEdit from "@/pages/AppointmentEdit";
+
 import GuestRooms from "@/pages/guest-rooms/GuestRooms";
+
 import Reports from "@/pages/reports/Reports";
-import Settings from "@/pages/settings/Settings";
+import ReportEdit from "@/pages/ReportEdit";
+import ReportRun from "@/pages/ReportRun";
+import ReportScheduledJobs from "@/pages/reports/ReportScheduledJobs";
 
 import MasterEvents from "@/pages/MasterEvents";
 import MasterEventDetail from "@/pages/MasterEventDetail";
-import ReportEdit from "@/pages/ReportEdit";
-import ReportRun from "@/pages/ReportRun";
+
+import GenerateDocuments from "@/pages/communication/GenerateDocuments";
+import ComposeEmail from "@/pages/communication/ComposeEmail";
+
+import Settings from "@/pages/settings/Settings";
 
 import { QuickEntryModal } from "@/components/QuickEntryModal";
+import { RecentRecordsProvider } from "@/components/RecentRecords";
 
 const queryClient = new QueryClient();
 
@@ -41,33 +60,61 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
 
-        <Route path="/events" component={EventsList} />
+        {/* Events */}
+        <Route path="/events/new" component={EventEdit} />
         <Route path="/events/calendar" component={EventCalendar} />
+        <Route path="/events/:id/edit" component={EventEdit} />
         <Route path="/events/:id/financials" component={EventFinancials} />
         <Route path="/events/:id/functions/:functionId/services" component={FunctionServices} />
         <Route path="/events/:id/functions/:functionId/financials" component={FunctionFinancials} />
         <Route path="/events/:id" component={EventDetail} />
+        <Route path="/events" component={EventsList} />
 
-        <Route path="/leads" component={LeadsList} />
+        {/* Leads */}
+        <Route path="/leads/new" component={LeadEdit} />
+        <Route path="/leads/:id/edit" component={LeadEdit} />
         <Route path="/leads/:id" component={LeadDetail} />
+        <Route path="/leads" component={LeadsList} />
 
-        <Route path="/accounts" component={AccountsList} />
+        {/* Accounts */}
+        <Route path="/accounts/new" component={AccountEdit} />
+        <Route path="/accounts/:id/edit" component={AccountEdit} />
         <Route path="/accounts/:id" component={AccountDetail} />
+        <Route path="/accounts" component={AccountsList} />
 
-        <Route path="/contacts" component={ContactsList} />
+        {/* Contacts */}
+        <Route path="/contacts/new" component={ContactEdit} />
+        <Route path="/contacts/:id/edit" component={ContactEdit} />
         <Route path="/contacts/:id" component={ContactDetail} />
+        <Route path="/contacts" component={ContactsList} />
 
+        {/* Tasks */}
+        <Route path="/tasks/new" component={TaskEdit} />
+        <Route path="/tasks/:id/edit" component={TaskEdit} />
         <Route path="/tasks" component={TasksList} />
 
+        {/* Appointments */}
+        <Route path="/appointments/new" component={AppointmentEdit} />
+        <Route path="/appointments/:id/edit" component={AppointmentEdit} />
+
+        {/* Guest Rooms */}
         <Route path="/guest-rooms" component={GuestRooms} />
 
-        <Route path="/reports" component={Reports} />
+        {/* Reports */}
+        <Route path="/reports/scheduled-jobs" component={ReportScheduledJobs} />
         <Route path="/reports/:id/edit" component={ReportEdit} />
         <Route path="/reports/:id/run" component={ReportRun} />
+        <Route path="/reports" component={Reports} />
 
-        <Route path="/master-events" component={MasterEvents} />
+        {/* Master Events */}
         <Route path="/master-events/:id" component={MasterEventDetail} />
+        <Route path="/master-events" component={MasterEvents} />
 
+        {/* Communication */}
+        <Route path="/communication/generate-documents/:eventId" component={GenerateDocuments} />
+        <Route path="/communication/compose-email/:eventId" component={ComposeEmail} />
+
+        {/* Settings */}
         <Route path="/settings" component={Settings} />
 
         <Route component={NotFound} />
@@ -82,9 +129,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <RecentRecordsProvider>
+          <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </RecentRecordsProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

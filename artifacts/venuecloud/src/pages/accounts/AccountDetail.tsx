@@ -60,7 +60,9 @@ export default function AccountDetail() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm"><Edit className="w-4 h-4 mr-2" /> Edit</Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/accounts/${accountId}/edit`}><Edit className="w-4 h-4 mr-2" /> Edit</Link>
+            </Button>
             <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
           </div>
         </header>

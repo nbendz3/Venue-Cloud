@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { RecentRecordsBar } from "@/components/RecentRecords";
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", href: "/" },
@@ -106,18 +107,8 @@ export function AppLayout({ children, onQuickEntry }: Props) {
           </div>
         </header>
 
-        {/* Recent Items Bar */}
-        <div className="h-8 bg-muted/50 border-b flex items-center px-4 gap-4 text-xs overflow-x-auto flex-shrink-0">
-          <span className="text-muted-foreground font-medium flex-shrink-0">Recent:</span>
-          <Link href="/events/1" className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors whitespace-nowrap">
-            <CalendarDays className="h-3 w-3 text-blue-500" />
-            Acme Corp Retreat
-          </Link>
-          <Link href="/leads/5" className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors whitespace-nowrap">
-            <Users className="h-3 w-3 text-amber-500" />
-            Tech Summit 2025
-          </Link>
-        </div>
+        {/* Colored Bookmarks / Recent Records Bar */}
+        <RecentRecordsBar />
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto bg-background p-6">
