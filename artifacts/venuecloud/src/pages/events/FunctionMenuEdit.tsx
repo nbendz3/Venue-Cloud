@@ -305,9 +305,10 @@ export default function FunctionMenuEdit() {
     onError: () => toast.error("Failed to save"),
   });
 
-  const menuQty = Math.round(
-    (Number(f.numberRequired) / Math.max(1, Number(f.perNumberOfGuests))) * 100
-  ) / 100;
+  const fnAttendance = parseFloat((fn as any)?.estimatedAttendance ?? "1") || 1;
+  const menuQty = f.autoCalculateQuantity
+    ? Math.round((Number(f.numberRequired) / Math.max(1, Number(f.perNumberOfGuests))) * fnAttendance)
+    : Number(f.numberRequired);
   const isPackage = f.pricingType !== "A La Carte Pricing";
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-4" /><Skeleton className="h-96 w-full" /></div>;

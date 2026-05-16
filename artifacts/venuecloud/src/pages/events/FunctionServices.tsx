@@ -59,6 +59,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -212,12 +213,26 @@ function ServiceItemRow({
         <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
           {item.notes ?? "—"}
         </TableCell>
-        <TableCell className="text-sm">{item.notesInternal ? "Yes" : "No"}</TableCell>
+        <TableCell>
+          {item.notesInternal
+            ? <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Internal</Badge>
+            : <span className="text-muted-foreground text-xs">—</span>}
+        </TableCell>
         <TableCell className="text-sm">{item.quantity ?? "—"}</TableCell>
         <TableCell className="text-sm">{fmt(item.aLaCartePrice)}</TableCell>
         <TableCell className="text-sm">{fmt(item.addOnPrice)}</TableCell>
         <TableCell className="text-sm">{item.numHours ?? "—"}</TableCell>
-        <TableCell className="text-sm font-medium">{fmt(item.itemTotal)}</TableCell>
+        <TableCell className="text-sm font-medium">
+          {(() => {
+            const qty = parseFloat(String(item.quantity ?? "1")) || 1;
+            const price = parseFloat(String(item.aLaCartePrice ?? "0")) || 0;
+            const hours = parseFloat(String(item.numHours ?? "1")) || 1;
+            const stored = parseFloat(String(item.itemTotal ?? "0")) || 0;
+            if (stored > 0) return fmt(stored);
+            if (price === 0) return "—";
+            return fmt(item.chargeHourly ? price * hours * qty : price * qty);
+          })()}
+        </TableCell>
         <TableCell className="text-sm">{item.revenueCenterName ?? "—"}</TableCell>
         <TableCell className="text-sm">{item.appliedRates ?? "—"}</TableCell>
         <TableCell className="text-sm">{item.category ?? "—"}</TableCell>
@@ -326,17 +341,51 @@ function ServiceItemRow({
   );
 }
 
+/* ─── Master service item library (demo data) ────────────────────── */
+const MASTER_ITEMS = [
+  { id: 1, name: "Breakfast Buffet", category: "Food", price: 24.50, cost: 12.00, rates: "Gratuity and Sales Tax" },
+  { id: 2, name: "Lunch Buffet", category: "Food", price: 32.00, cost: 16.00, rates: "Gratuity and Sales Tax" },
+  { id: 3, name: "Dinner Plated - Choice", category: "Food", price: 58.00, cost: 24.00, rates: "Gratuity and Sales Tax" },
+  { id: 4, name: "Coffee Break - AM", category: "Beverage", price: 12.00, cost: 4.00, rates: "Gratuity and Sales Tax" },
+  { id: 5, name: "Coffee Break - PM", category: "Beverage", price: 12.00, cost: 4.00, rates: "Gratuity and Sales Tax" },
+  { id: 6, name: "Soft Drinks - Consumption", category: "Beverage", price: 4.50, cost: 1.50, rates: "Gratuity and Sales Tax" },
+  { id: 7, name: "Full Bar Package", category: "Beverage", price: 28.00, cost: 10.00, rates: "Gratuity and Sales Tax" },
+  { id: 8, name: "Beer & Wine Package", category: "Beverage", price: 18.00, cost: 6.00, rates: "Gratuity and Sales Tax" },
+  { id: 9, name: "Audio/Visual Package - Basic", category: "A/V", price: 350.00, cost: 120.00, rates: "Sales Tax Only" },
+  { id: 10, name: "Projector & Screen", category: "A/V", price: 150.00, cost: 50.00, rates: "Sales Tax Only" },
+  { id: 11, name: "Wireless Microphone", category: "A/V", price: 75.00, cost: 25.00, rates: "Sales Tax Only" },
+  { id: 12, name: "Stage (12x16)", category: "Setup", price: 450.00, cost: 200.00, rates: "Sales Tax Only" },
+  { id: 13, name: "Round Tables (60\")", category: "Setup", price: 8.00, cost: 3.00, rates: "Sales Tax Only" },
+  { id: 14, name: "Banquet Chairs", category: "Setup", price: 2.50, cost: 0.75, rates: "Sales Tax Only" },
+  { id: 15, name: "Linens - White", category: "Setup", price: 12.00, cost: 4.00, rates: "Sales Tax Only" },
+  { id: 16, name: "Centerpiece - Floral", category: "Décor", price: 55.00, cost: 30.00, rates: "Sales Tax Only" },
+  { id: 17, name: "Votive Candles (10)", category: "Décor", price: 15.00, cost: 5.00, rates: "None" },
+  { id: 18, name: "Event Coordinator (hourly)", category: "Labor", price: 45.00, cost: 20.00, rates: "None" },
+  { id: 19, name: "Setup Labor (hourly)", category: "Labor", price: 35.00, cost: 15.00, rates: "None" },
+  { id: 20, name: "Security (per guard/hr)", category: "Labor", price: 38.00, cost: 18.00, rates: "None" },
+];
+const MASTER_ITEM_CATEGORIES = ["All", "Food", "Beverage", "A/V", "Setup", "Décor", "Labor"];
+
 function ServiceTypeBlock({
   serviceType,
   functionId,
   menuId,
+  allMenus,
 }: {
   serviceType: any;
   functionId: number;
   menuId: number;
+  allMenus: any[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [masterListOpen, setMasterListOpen] = useState(false);
+  const [fromMenuOpen, setFromMenuOpen] = useState(false);
+  const [masterSearch, setMasterSearch] = useState("");
+  const [masterCategory, setMasterCategory] = useState("All");
+  const [selectedMasterItems, setSelectedMasterItems] = useState<number[]>([]);
+  const [selectedMenuSource, setSelectedMenuSource] = useState<number | null>(null);
+  const [selectedMenuItems, setSelectedMenuItems] = useState<number[]>([]);
   const [itemForm, setItemForm] = useState({
     itemName: "",
     description: "",
@@ -407,14 +456,28 @@ function ServiceTypeBlock({
             <Badge variant="outline" className="text-xs">Max {serviceType.maxSelections}</Badge>
           )}
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">Total: <span className="font-medium text-foreground">{fmt(totalCharges)}</span></span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground mr-2">Total: <span className="font-medium text-foreground">{fmt(totalCharges)}</span></span>
           <Button size="sm" variant="outline" onClick={() => setAddItemOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Custom Item
           </Button>
-          <button onClick={removeType} className="text-muted-foreground hover:text-destructive">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline"><MoreHorizontal className="w-4 h-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setMasterListOpen(true)}>
+                <Search className="w-4 h-4 mr-2" /> Add Items from Master Library
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFromMenuOpen(true)} disabled={allMenus.filter(m => m.id !== menuId).length === 0}>
+                <Plus className="w-4 h-4 mr-2" /> Add Items from Another Menu
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive" onClick={removeType}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Service Type
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {!collapsed && (
@@ -441,7 +504,7 @@ function ServiceTypeBlock({
               {serviceType.items?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={13} className="text-center text-muted-foreground py-6 text-sm">
-                    No items yet. Click "Add Custom Item" to begin.
+                    No items yet. Use the buttons above to add items.
                   </TableCell>
                 </TableRow>
               )}
@@ -453,6 +516,7 @@ function ServiceTypeBlock({
         </div>
       )}
 
+      {/* Dialog 1: Add Custom Item */}
       {addItemOpen && (
         <Dialog open onOpenChange={() => setAddItemOpen(false)}>
           <DialogContent className="max-w-xl">
@@ -503,6 +567,175 @@ function ServiceTypeBlock({
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialog 2: Add Items from Master Library */}
+      {masterListOpen && (
+        <Dialog open onOpenChange={() => { setMasterListOpen(false); setSelectedMasterItems([]); }}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Add Items from Master Service Library</DialogTitle>
+            </DialogHeader>
+            <div className="flex gap-3 mb-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search items..." value={masterSearch} onChange={e => setMasterSearch(e.target.value)} className="pl-9" />
+              </div>
+              <Select value={masterCategory} onValueChange={setMasterCategory}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>{MASTER_ITEM_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs">
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>A La Carte Price</TableHead>
+                    <TableHead>Cost</TableHead>
+                    <TableHead>Applied Rates</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {MASTER_ITEMS
+                    .filter(mi =>
+                      (masterCategory === "All" || mi.category === masterCategory) &&
+                      mi.name.toLowerCase().includes(masterSearch.toLowerCase())
+                    )
+                    .map(mi => (
+                      <TableRow
+                        key={mi.id}
+                        className={`cursor-pointer ${selectedMasterItems.includes(mi.id) ? "bg-primary/10" : ""}`}
+                        onClick={() => setSelectedMasterItems(prev => prev.includes(mi.id) ? prev.filter(x => x !== mi.id) : [...prev, mi.id])}
+                      >
+                        <TableCell>
+                          <Checkbox checked={selectedMasterItems.includes(mi.id)} onCheckedChange={() =>
+                            setSelectedMasterItems(prev => prev.includes(mi.id) ? prev.filter(x => x !== mi.id) : [...prev, mi.id])
+                          } />
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">{mi.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{mi.category}</TableCell>
+                        <TableCell className="text-sm">{fmt(mi.price)}</TableCell>
+                        <TableCell className="text-sm">{fmt(mi.cost)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{mi.rates}</TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setMasterListOpen(false); setSelectedMasterItems([]); }}>Cancel</Button>
+              <Button
+                disabled={selectedMasterItems.length === 0 || createItem.isPending}
+                onClick={async () => {
+                  for (const id of selectedMasterItems) {
+                    const mi = MASTER_ITEMS.find(m => m.id === id)!;
+                    await createItem.mutateAsync({
+                      id: serviceType.id,
+                      data: { itemName: mi.name, aLaCartePrice: mi.price, cost: mi.cost, appliedRates: mi.rates, quantity: 1, category: mi.category },
+                    });
+                  }
+                  queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+                  toast({ title: `${selectedMasterItems.length} item(s) added from library` });
+                  setMasterListOpen(false);
+                  setSelectedMasterItems([]);
+                }}
+              >
+                Add Selected ({selectedMasterItems.length})
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dialog 3: Add Items from Another Menu */}
+      {fromMenuOpen && (
+        <Dialog open onOpenChange={() => { setFromMenuOpen(false); setSelectedMenuItems([]); setSelectedMenuSource(null); }}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Add Items from Another Menu</DialogTitle>
+            </DialogHeader>
+            <div className="mb-3">
+              <Label className="text-xs">Source Menu</Label>
+              <Select value={selectedMenuSource ? String(selectedMenuSource) : "_none_"} onValueChange={v => { setSelectedMenuSource(v === "_none_" ? null : Number(v)); setSelectedMenuItems([]); }}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Choose a menu..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none_">— Select menu —</SelectItem>
+                  {allMenus.filter(m => m.id !== menuId).map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>{m.functionMenuName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedMenuSource && (() => {
+              const srcMenu = allMenus.find(m => m.id === selectedMenuSource);
+              const srcItems = (srcMenu?.serviceTypes ?? []).flatMap((st: any) => st.items ?? []);
+              return srcItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No items in selected menu.</p>
+              ) : (
+                <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="w-8"></TableHead>
+                        <TableHead>Item</TableHead>
+                        <TableHead>A La Carte</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead>Qty</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {srcItems.map((item: any) => (
+                        <TableRow
+                          key={item.id}
+                          className={`cursor-pointer ${selectedMenuItems.includes(item.id) ? "bg-primary/10" : ""}`}
+                          onClick={() => setSelectedMenuItems(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])}
+                        >
+                          <TableCell>
+                            <Checkbox checked={selectedMenuItems.includes(item.id)} onCheckedChange={() =>
+                              setSelectedMenuItems(prev => prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id])
+                            } />
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">{item.itemName}</TableCell>
+                          <TableCell className="text-sm">{fmt(item.aLaCartePrice)}</TableCell>
+                          <TableCell className="text-sm">{fmt(item.cost)}</TableCell>
+                          <TableCell className="text-sm">{item.quantity ?? "1"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              );
+            })()}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setFromMenuOpen(false); setSelectedMenuItems([]); setSelectedMenuSource(null); }}>Cancel</Button>
+              <Button
+                disabled={selectedMenuItems.length === 0 || createItem.isPending || !selectedMenuSource}
+                onClick={async () => {
+                  const srcMenu = allMenus.find(m => m.id === selectedMenuSource);
+                  const srcItems = (srcMenu?.serviceTypes ?? []).flatMap((st: any) => st.items ?? []);
+                  for (const itemId of selectedMenuItems) {
+                    const src = srcItems.find((i: any) => i.id === itemId);
+                    if (!src) continue;
+                    await createItem.mutateAsync({
+                      id: serviceType.id,
+                      data: { itemName: src.itemName, description: src.description || undefined, aLaCartePrice: src.aLaCartePrice ? parseFloat(src.aLaCartePrice) : undefined, addOnPrice: src.addOnPrice ? parseFloat(src.addOnPrice) : undefined, cost: src.cost ? parseFloat(src.cost) : undefined, quantity: src.quantity ? parseFloat(src.quantity) : 1, appliedRates: src.appliedRates || undefined, category: src.category || undefined },
+                    });
+                  }
+                  queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+                  toast({ title: `${selectedMenuItems.length} item(s) copied from menu` });
+                  setFromMenuOpen(false);
+                  setSelectedMenuItems([]);
+                  setSelectedMenuSource(null);
+                }}
+              >
+                Copy Selected ({selectedMenuItems.length})
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -511,10 +744,12 @@ function MenuBlock({
   menu,
   functionId,
   eventId,
+  allMenus,
 }: {
   menu: any;
   functionId: number;
   eventId: number;
+  allMenus: any[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [addServiceTypeOpen, setAddServiceTypeOpen] = useState(false);
@@ -577,6 +812,11 @@ function MenuBlock({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" asChild>
+            <Link href={`/events/${eventId}/functions/${functionId}/menus/${menu.id}/edit`}>
+              Edit Menu
+            </Link>
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setAddServiceTypeOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> New Service Type
           </Button>
@@ -585,6 +825,16 @@ function MenuBlock({
               <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setAddServiceTypeOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Add Service Type
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast({ title: "Reorder mode — drag service types to reorder" })}>
+                Reorder Service Types
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast({ title: "Reorder items mode — drag items within each service type" })}>
+                Reorder Items
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={removeMenu} className="text-destructive">
                 <Trash2 className="w-4 h-4 mr-2" /> Delete Menu
               </DropdownMenuItem>
@@ -601,7 +851,7 @@ function MenuBlock({
             </div>
           )}
           {menu.serviceTypes?.map((st: any) => (
-            <ServiceTypeBlock key={st.id} serviceType={st} functionId={functionId} menuId={menu.id} />
+            <ServiceTypeBlock key={st.id} serviceType={st} functionId={functionId} menuId={menu.id} allMenus={allMenus} />
           ))}
         </div>
       )}
@@ -889,7 +1139,7 @@ export default function FunctionServices() {
           )}
           <div className="space-y-6">
             {menus?.map((menu: any) => (
-              <MenuBlock key={menu.id} menu={menu} functionId={functionId} eventId={eventId} />
+              <MenuBlock key={menu.id} menu={menu} functionId={functionId} eventId={eventId} allMenus={menus ?? []} />
             ))}
           </div>
         </div>
