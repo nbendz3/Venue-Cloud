@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import {
   useGetEvent,
   useGetFunction,
@@ -7,7 +7,6 @@ import {
   useGetFunctionMenus,
   useGetMenuTemplates,
   useCreateFunctionMenu,
-  useUpdateFunctionMenu,
   useDeleteFunctionMenu,
   useCreateServiceType,
   useDeleteServiceType,
@@ -17,7 +16,6 @@ import {
   useAddMenuTemplate,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +64,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
 
 const MENU_CATEGORIES = [
   "Show All",
