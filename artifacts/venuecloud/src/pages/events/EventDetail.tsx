@@ -13,9 +13,10 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye, Trash2, UserPlus, BedDouble, Users, CheckCircle2, Circle, CalendarDays, Clock } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye, Trash2, UserPlus, BedDouble, Users, CheckCircle2, Circle, CalendarDays, Clock, StickyNote, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -164,6 +165,103 @@ export default function EventDetail() {
       toast({ title: "Personnel removed" });
     },
     onError: () => toast({ title: "Failed to remove personnel", variant: "destructive" }),
+  });
+
+  // ── Notes ──────────────────────────────────────────────────
+  const { data: eventNotes, isLoading: notesLoading } = useQuery<{
+    id: number; relatedType: string; relatedId: number; noteText: string;
+    salesperson: string | null; internal: boolean; createdAt: string;
+  }[]>({
+    queryKey: ["/api/notes", { relatedType: "Event", relatedId: eventId }],
+    queryFn: () => fetch(`/api/notes?relatedType=Event&relatedId=${eventId}`).then(r => r.json()),
+    enabled: !!eventId,
+  });
+  const [newNoteText, setNewNoteText] = useState("");
+  const [noteInternal, setNoteInternal] = useState(false);
+  const addNote = useMutation({
+    mutationFn: (data: object) =>
+      fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      setNewNoteText("");
+      setNoteInternal(false);
+      toast({ title: "Note added" });
+    },
+    onError: () => toast({ title: "Failed to add note", variant: "destructive" }),
+  });
+  const deleteNote = useMutation({
+    mutationFn: (id: number) => fetch(`/api/notes/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      toast({ title: "Note deleted" });
+    },
+  });
+
+  // ── Tasks ──────────────────────────────────────────────────
+  const { data: eventTasks, isLoading: tasksLoading } = useQuery<{
+    id: number; name: string; priority: string; description: string | null;
+    relatedType: string | null; relatedId: number | null; salesperson: string | null;
+    dueDate: string | null; status: string; createdAt: string;
+  }[]>({
+    queryKey: ["/api/tasks", { relatedType: "Event", relatedId: eventId }],
+    queryFn: () => fetch(`/api/tasks?relatedType=Event&relatedId=${eventId}`).then(r => r.json()),
+    enabled: !!eventId,
+  });
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState({ name: "", priority: "Medium", dueDate: "", salesperson: "", description: "" });
+  const addTask = useMutation({
+    mutationFn: (data: object) =>
+      fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setTaskDialogOpen(false);
+      setTaskForm({ name: "", priority: "Medium", dueDate: "", salesperson: "", description: "" });
+      toast({ title: "Task created" });
+    },
+    onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
+  });
+  const toggleTask = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      fetch(`/api/tasks/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/tasks"] }),
+  });
+  const deleteTask = useMutation({
+    mutationFn: (id: number) => fetch(`/api/tasks/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "Task deleted" });
+    },
+  });
+
+  // ── Appointments ───────────────────────────────────────────
+  const { data: eventAppts, isLoading: apptsLoading } = useQuery<{
+    id: number; name: string; startDatetime: string | null; endDatetime: string | null;
+    relatedType: string | null; relatedId: number | null; category: string | null;
+    salesperson: string | null; result: string | null; contactName: string | null; createdAt: string;
+  }[]>({
+    queryKey: ["/api/appointments", { relatedType: "Event", relatedId: eventId }],
+    queryFn: () => fetch(`/api/appointments?relatedType=Event&relatedId=${eventId}`).then(r => r.json()),
+    enabled: !!eventId,
+  });
+  const [apptDialogOpen, setApptDialogOpen] = useState(false);
+  const [apptForm, setApptForm] = useState({ name: "", startDatetime: "", endDatetime: "", category: "", salesperson: "", result: "" });
+  const addAppt = useMutation({
+    mutationFn: (data: object) =>
+      fetch("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      setApptDialogOpen(false);
+      setApptForm({ name: "", startDatetime: "", endDatetime: "", category: "", salesperson: "", result: "" });
+      toast({ title: "Appointment created" });
+    },
+    onError: () => toast({ title: "Failed to create appointment", variant: "destructive" }),
+  });
+  const deleteAppt = useMutation({
+    mutationFn: (id: number) => fetch(`/api/appointments/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      toast({ title: "Appointment deleted" });
+    },
   });
 
   const rbQueryKey = ["/api/guest-room-blocks"];
@@ -1129,6 +1227,340 @@ export default function EventDetail() {
                             >
                               Add Contact
                             </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                );
+              }
+
+              if (section === "Notes") {
+                const priorityColors: Record<string, string> = {
+                  High: "text-red-600", Medium: "text-amber-600", Low: "text-muted-foreground",
+                };
+                const fmtNote = (d: string) =>
+                  new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Notes</h2>
+                    </div>
+                    {/* Add note input */}
+                    <Card className="mb-4">
+                      <CardContent className="p-4 space-y-3">
+                        <Textarea
+                          placeholder="Add a note..."
+                          className="min-h-[80px] resize-none text-sm"
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                        />
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={noteInternal}
+                              onChange={(e) => setNoteInternal(e.target.checked)}
+                              className="rounded"
+                            />
+                            Internal note
+                          </label>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (!newNoteText.trim()) return;
+                              addNote.mutate({
+                                relatedType: "Event",
+                                relatedId: eventId,
+                                noteText: newNoteText.trim(),
+                                salesperson: event.salesperson ?? event.owner ?? null,
+                                internal: noteInternal,
+                              });
+                            }}
+                            disabled={!newNoteText.trim() || addNote.isPending}
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Add Note
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    {/* Notes list */}
+                    {notesLoading ? (
+                      <Skeleton className="h-20 w-full" />
+                    ) : !eventNotes || eventNotes.length === 0 ? (
+                      <Card>
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">No notes yet.</CardContent>
+                      </Card>
+                    ) : (
+                      <div className="space-y-3">
+                        {[...eventNotes].reverse().map((note) => (
+                          <Card key={note.id} className={note.internal ? "border-amber-200 bg-amber-50/40" : ""}>
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <p className="text-sm flex-1 whitespace-pre-wrap leading-relaxed">{note.noteText}</p>
+                                <button
+                                  className="h-6 w-6 flex-shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                  onClick={() => deleteNote.mutate(note.id)}
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                                {note.internal && <Badge variant="outline" className="text-xs border-amber-400 text-amber-700 bg-amber-50">Internal</Badge>}
+                                <span className="font-medium">{note.salesperson ?? "Unknown"}</span>
+                                <span>·</span>
+                                <span>{fmtNote(note.createdAt)}</span>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (section === "Tasks") {
+                const priorityColor = (p: string) =>
+                  p === "High" ? "border-red-400 text-red-700 bg-red-50"
+                  : p === "Medium" ? "border-amber-400 text-amber-700 bg-amber-50"
+                  : "border-slate-300 text-slate-600";
+                const fmtDue = (d: string | null | undefined) =>
+                  d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+                const isOverdue = (d: string | null | undefined, status: string) =>
+                  !!d && d < new Date().toISOString().split("T")[0] && status !== "Completed";
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Tasks</h2>
+                      <Button size="sm" onClick={() => setTaskDialogOpen(true)}>
+                        <Plus className="w-3.5 h-3.5 mr-1" /> New Task
+                      </Button>
+                    </div>
+                    <Card>
+                      {tasksLoading ? (
+                        <CardContent className="p-6"><Skeleton className="h-16 w-full" /></CardContent>
+                      ) : !eventTasks || eventTasks.length === 0 ? (
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">No tasks for this event.</CardContent>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead className="w-10"></TableHead>
+                                <TableHead>Task Name</TableHead>
+                                <TableHead>Priority</TableHead>
+                                <TableHead>Due Date</TableHead>
+                                <TableHead>Assigned To</TableHead>
+                                <TableHead className="w-10"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {eventTasks.map((task) => {
+                                const done = task.status === "Completed";
+                                const overdue = isOverdue(task.dueDate, task.status);
+                                return (
+                                  <TableRow key={task.id} className={`text-sm ${done ? "opacity-60" : ""}`}>
+                                    <TableCell>
+                                      <button
+                                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                          done ? "border-green-500 bg-green-500 text-white" : "border-muted-foreground/40 hover:border-green-400"
+                                        }`}
+                                        onClick={() => toggleTask.mutate({ id: task.id, status: done ? "Open" : "Completed" })}
+                                        title={done ? "Mark open" : "Mark complete"}
+                                      >
+                                        {done && <Check className="w-3 h-3" />}
+                                      </button>
+                                    </TableCell>
+                                    <TableCell className={`font-medium ${done ? "line-through text-muted-foreground" : ""}`}>
+                                      {task.name}
+                                      {task.description && <p className="text-xs text-muted-foreground font-normal mt-0.5">{task.description}</p>}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="outline" className={`text-xs ${priorityColor(task.priority)}`}>{task.priority}</Badge>
+                                    </TableCell>
+                                    <TableCell className={`whitespace-nowrap ${overdue ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                                      {fmtDue(task.dueDate)}
+                                      {overdue && <span className="text-xs ml-1">(overdue)</span>}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">{task.salesperson ?? "—"}</TableCell>
+                                    <TableCell>
+                                      <button
+                                        className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                        onClick={() => deleteTask.mutate(task.id)}
+                                        title="Delete task"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+
+                    {taskDialogOpen && (
+                      <Dialog open onOpenChange={(open) => { if (!open) { setTaskDialogOpen(false); setTaskForm({ name: "", priority: "Medium", dueDate: "", salesperson: "", description: "" }); } }}>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader><DialogTitle>New Task</DialogTitle></DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Task Name</Label>
+                              <Input placeholder="Task description..." value={taskForm.name} onChange={(e) => setTaskForm(f => ({ ...f, name: e.target.value }))} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Priority</Label>
+                                <Select value={taskForm.priority} onValueChange={(v) => setTaskForm(f => ({ ...f, priority: v }))}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="High">High</SelectItem>
+                                    <SelectItem value="Medium">Medium</SelectItem>
+                                    <SelectItem value="Low">Low</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Due Date</Label>
+                                <Input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm(f => ({ ...f, dueDate: e.target.value }))} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Assigned To</Label>
+                              <Input placeholder="Salesperson name" value={taskForm.salesperson} onChange={(e) => setTaskForm(f => ({ ...f, salesperson: e.target.value }))} />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Description (optional)</Label>
+                              <Textarea placeholder="Additional details..." className="resize-none text-sm" value={taskForm.description} onChange={(e) => setTaskForm(f => ({ ...f, description: e.target.value }))} />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => { setTaskDialogOpen(false); setTaskForm({ name: "", priority: "Medium", dueDate: "", salesperson: "", description: "" }); }}>Cancel</Button>
+                            <Button
+                              onClick={() => addTask.mutate({ name: taskForm.name, priority: taskForm.priority, dueDate: taskForm.dueDate || null, salesperson: taskForm.salesperson || null, description: taskForm.description || null, relatedType: "Event", relatedId: eventId, status: "Open" })}
+                              disabled={!taskForm.name || addTask.isPending}
+                            >Create Task</Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                );
+              }
+
+              if (section === "Appointments") {
+                const fmtAppt = (d: string | null | undefined) => {
+                  if (!d) return "—";
+                  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+                };
+                const APPT_TYPES = ["Call", "Meeting", "Site Visit", "Tasting", "Contract Review", "Follow-up", "Other"];
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Appointments</h2>
+                      <Button size="sm" onClick={() => setApptDialogOpen(true)}>
+                        <Plus className="w-3.5 h-3.5 mr-1" /> New Appointment
+                      </Button>
+                    </div>
+                    <Card>
+                      {apptsLoading ? (
+                        <CardContent className="p-6"><Skeleton className="h-16 w-full" /></CardContent>
+                      ) : !eventAppts || eventAppts.length === 0 ? (
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">No appointments scheduled.</CardContent>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead>Subject</TableHead>
+                                <TableHead>Date / Time</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Attendees</TableHead>
+                                <TableHead>Notes</TableHead>
+                                <TableHead className="w-10"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {eventAppts.map((appt) => (
+                                <TableRow key={appt.id} className="text-sm">
+                                  <TableCell className="font-medium">{appt.name}</TableCell>
+                                  <TableCell className="whitespace-nowrap text-muted-foreground">{fmtAppt(appt.startDatetime)}</TableCell>
+                                  <TableCell>
+                                    {appt.category
+                                      ? <Badge variant="outline" className="text-xs">{appt.category}</Badge>
+                                      : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {appt.contactName ?? appt.salesperson ?? "—"}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                                    {appt.result || "—"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <button
+                                      className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                      onClick={() => deleteAppt.mutate(appt.id)}
+                                      title="Delete appointment"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+
+                    {apptDialogOpen && (
+                      <Dialog open onOpenChange={(open) => { if (!open) { setApptDialogOpen(false); setApptForm({ name: "", startDatetime: "", endDatetime: "", category: "", salesperson: "", result: "" }); } }}>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader><DialogTitle>New Appointment</DialogTitle></DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Subject</Label>
+                              <Input placeholder="e.g. Site Walk – Main Ballroom" value={apptForm.name} onChange={(e) => setApptForm(f => ({ ...f, name: e.target.value }))} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Start Date / Time</Label>
+                                <Input type="datetime-local" value={apptForm.startDatetime} onChange={(e) => setApptForm(f => ({ ...f, startDatetime: e.target.value }))} />
+                              </div>
+                              <div>
+                                <Label className="text-xs mb-1.5 block">End Date / Time</Label>
+                                <Input type="datetime-local" value={apptForm.endDatetime} onChange={(e) => setApptForm(f => ({ ...f, endDatetime: e.target.value }))} />
+                              </div>
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Type</Label>
+                              <Select value={apptForm.category || "_none_"} onValueChange={(v) => setApptForm(f => ({ ...f, category: v === "_none_" ? "" : v }))}>
+                                <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none_">— Select type —</SelectItem>
+                                  {APPT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Attendees</Label>
+                              <Input placeholder="e.g. Sarah Johnson, James Whitfield" value={apptForm.salesperson} onChange={(e) => setApptForm(f => ({ ...f, salesperson: e.target.value }))} />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Notes</Label>
+                              <Textarea className="resize-none text-sm" placeholder="Agenda or notes..." value={apptForm.result} onChange={(e) => setApptForm(f => ({ ...f, result: e.target.value }))} />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => { setApptDialogOpen(false); setApptForm({ name: "", startDatetime: "", endDatetime: "", category: "", salesperson: "", result: "" }); }}>Cancel</Button>
+                            <Button
+                              onClick={() => addAppt.mutate({ name: apptForm.name, startDatetime: apptForm.startDatetime || null, endDatetime: apptForm.endDatetime || null, category: apptForm.category || null, salesperson: apptForm.salesperson || null, result: apptForm.result || null, relatedType: "Event", relatedId: eventId })}
+                              disabled={!apptForm.name || addAppt.isPending}
+                            >Create Appointment</Button>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
