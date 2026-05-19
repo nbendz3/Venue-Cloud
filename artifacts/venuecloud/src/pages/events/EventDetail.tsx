@@ -8,7 +8,7 @@ import {
   useRemoveEventContact,
   useListContacts,
 } from "@workspace/api-client-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -122,6 +122,51 @@ export default function EventDetail() {
   const [contactSearch, setContactSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState<string>("_none_");
   const [contactRole, setContactRole] = useState("");
+
+  const [roomBlockDialogOpen, setRoomBlockDialogOpen] = useState(false);
+  const [editingRoomBlockId, setEditingRoomBlockId] = useState<number | null>(null);
+  const [roomBlockForm, setRoomBlockForm] = useState({
+    blockName: "", startDate: "", departureDate: "", blocked: "", pickup: "", avgRate: "",
+  });
+
+  const rbQueryKey = ["/api/guest-room-blocks"];
+  const createRoomBlock = useMutation({
+    mutationFn: (data: object) =>
+      fetch("/api/guest-room-blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: rbQueryKey });
+      setRoomBlockDialogOpen(false);
+      toast({ title: "Room block added" });
+    },
+    onError: () => toast({ title: "Failed to add room block", variant: "destructive" }),
+  });
+  const updateRoomBlock = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) =>
+      fetch(`/api/guest-room-blocks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: rbQueryKey });
+      setRoomBlockDialogOpen(false);
+      toast({ title: "Room block updated" });
+    },
+    onError: () => toast({ title: "Failed to update room block", variant: "destructive" }),
+  });
+  const deleteRoomBlock = useMutation({
+    mutationFn: (id: number) =>
+      fetch(`/api/guest-room-blocks/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: rbQueryKey });
+      toast({ title: "Room block removed" });
+    },
+    onError: () => toast({ title: "Failed to remove room block", variant: "destructive" }),
+  });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;
@@ -437,17 +482,52 @@ export default function EventDetail() {
               const sectionIdx = idx + 3;
 
               if (section === "Guest Room Blocks") {
+                const fmtDate = (d: string | null | undefined) =>
+                  d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+                const pickupPct = (blocked: number | null | undefined, pickup: number | null | undefined) => {
+                  if (!blocked || pickup == null) return "—";
+                  return `${Math.round((pickup / blocked) * 100)}%`;
+                };
+                const openAdd = () => {
+                  setEditingRoomBlockId(null);
+                  setRoomBlockForm({ blockName: "", startDate: "", departureDate: "", blocked: "", pickup: "", avgRate: "" });
+                  setRoomBlockDialogOpen(true);
+                };
+                const openEdit = (block: NonNullable<typeof roomBlocks>[number]) => {
+                  setEditingRoomBlockId(block.id);
+                  setRoomBlockForm({
+                    blockName: block.blockName ?? "",
+                    startDate: block.startDate ?? "",
+                    departureDate: block.departureDate ?? "",
+                    blocked: block.blocked != null ? String(block.blocked) : "",
+                    pickup: block.pickup != null ? String(block.pickup) : "",
+                    avgRate: block.avgRate != null ? String(block.avgRate) : "",
+                  });
+                  setRoomBlockDialogOpen(true);
+                };
+                const handleSaveBlock = () => {
+                  const payload = {
+                    eventId,
+                    blockName: roomBlockForm.blockName,
+                    startDate: roomBlockForm.startDate || null,
+                    departureDate: roomBlockForm.departureDate || null,
+                    blocked: roomBlockForm.blocked ? parseInt(roomBlockForm.blocked) : null,
+                    pickup: roomBlockForm.pickup ? parseInt(roomBlockForm.pickup) : null,
+                    avgRate: roomBlockForm.avgRate ? roomBlockForm.avgRate : null,
+                  };
+                  if (editingRoomBlockId != null) {
+                    updateRoomBlock.mutate({ id: editingRoomBlockId, data: payload });
+                  } else {
+                    createRoomBlock.mutate(payload);
+                  }
+                };
                 return (
                   <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
                     <div className="flex items-center justify-between mb-4 pb-2 border-b">
                       <h2 className="text-lg font-semibold">Guest Room Blocks</h2>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" asChild>
-                          <Link href={`/guest-rooms`}>
-                            <BedDouble className="w-3.5 h-3.5 mr-1" /> View Guest Rooms
-                          </Link>
-                        </Button>
-                      </div>
+                      <Button size="sm" onClick={openAdd}>
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Add Room Block
+                      </Button>
                     </div>
                     <Card>
                       {(!roomBlocks || roomBlocks.length === 0) ? (
@@ -459,36 +539,53 @@ export default function EventDetail() {
                           <Table>
                             <TableHeader>
                               <TableRow className="text-xs bg-muted/40">
-                                <TableHead>Block Name</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-center"># Blocked</TableHead>
-                                <TableHead>Check-in</TableHead>
-                                <TableHead>Check-out</TableHead>
-                                <TableHead className="text-right">Avg Rate</TableHead>
-                                <TableHead>Cut-off Date</TableHead>
-                                <TableHead className="text-center"># Pickup</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead>Room Type</TableHead>
+                                <TableHead>Check-In Date</TableHead>
+                                <TableHead>Check-Out Date</TableHead>
+                                <TableHead className="text-center">Rooms Blocked</TableHead>
+                                <TableHead className="text-center">Rooms Picked Up</TableHead>
+                                <TableHead className="text-center">Pickup %</TableHead>
+                                <TableHead className="text-right">Rate</TableHead>
+                                <TableHead className="w-16"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {roomBlocks.map((block) => (
                                 <TableRow key={block.id} className="text-sm">
                                   <TableCell className="font-medium">{block.blockName}</TableCell>
-                                  <TableCell>
-                                    {block.status ? (
-                                      <Badge variant="outline" className="text-xs">{block.status}</Badge>
-                                    ) : <span className="text-muted-foreground">—</span>}
-                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap">{fmtDate(block.startDate)}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{fmtDate(block.departureDate)}</TableCell>
                                   <TableCell className="text-center">{block.blocked ?? '—'}</TableCell>
-                                  <TableCell className="whitespace-nowrap">{block.startDate ?? '—'}</TableCell>
-                                  <TableCell className="whitespace-nowrap">{block.departureDate ?? '—'}</TableCell>
+                                  <TableCell className="text-center">{block.pickup ?? '—'}</TableCell>
+                                  <TableCell className="text-center">
+                                    <span className={
+                                      block.blocked && block.pickup != null
+                                        ? block.pickup / block.blocked >= 0.8 ? "text-green-600 font-medium" : "text-amber-600 font-medium"
+                                        : "text-muted-foreground"
+                                    }>
+                                      {pickupPct(block.blocked, block.pickup)}
+                                    </span>
+                                  </TableCell>
                                   <TableCell className="text-right">
                                     {block.avgRate != null ? fmt$(block.avgRate) : '—'}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap">{block.cutoffDate ?? '—'}</TableCell>
-                                  <TableCell className="text-center">{block.pickup ?? '—'}</TableCell>
-                                  <TableCell className="text-right font-medium">
-                                    {block.total != null ? fmt$(block.total) : '—'}
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        onClick={() => openEdit(block)}
+                                        title="Edit room block"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                        onClick={() => deleteRoomBlock.mutate(block.id)}
+                                        title="Remove room block"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -497,6 +594,86 @@ export default function EventDetail() {
                         </div>
                       )}
                     </Card>
+
+                    {roomBlockDialogOpen && (
+                      <Dialog open onOpenChange={(open) => { if (!open) setRoomBlockDialogOpen(false); }}>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>{editingRoomBlockId != null ? "Edit Room Block" : "Add Room Block"}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Room Type</Label>
+                              <Input
+                                placeholder="e.g. Standard King"
+                                value={roomBlockForm.blockName}
+                                onChange={(e) => setRoomBlockForm((f) => ({ ...f, blockName: e.target.value }))}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Check-In Date</Label>
+                                <Input
+                                  type="date"
+                                  value={roomBlockForm.startDate}
+                                  onChange={(e) => setRoomBlockForm((f) => ({ ...f, startDate: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Check-Out Date</Label>
+                                <Input
+                                  type="date"
+                                  value={roomBlockForm.departureDate}
+                                  onChange={(e) => setRoomBlockForm((f) => ({ ...f, departureDate: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Rooms Blocked</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="0"
+                                  value={roomBlockForm.blocked}
+                                  onChange={(e) => setRoomBlockForm((f) => ({ ...f, blocked: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Picked Up</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="0"
+                                  value={roomBlockForm.pickup}
+                                  onChange={(e) => setRoomBlockForm((f) => ({ ...f, pickup: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Rate ($)</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={roomBlockForm.avgRate}
+                                  onChange={(e) => setRoomBlockForm((f) => ({ ...f, avgRate: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setRoomBlockDialogOpen(false)}>Cancel</Button>
+                            <Button
+                              onClick={handleSaveBlock}
+                              disabled={!roomBlockForm.blockName || createRoomBlock.isPending || updateRoomBlock.isPending}
+                            >
+                              {editingRoomBlockId != null ? "Save Changes" : "Add Block"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 );
               }
