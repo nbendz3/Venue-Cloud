@@ -153,6 +153,7 @@ export default function EventFinancials() {
 
   const totals = fin?.totals as any;
   const functions = fin?.functions as any[] ?? [];
+  const rcBreakdown = (fin as any)?.revenueCenterBreakdown as any[] ?? [];
   const balanceDue = fin?.balanceDue ?? 0;
 
   return (
@@ -290,6 +291,63 @@ export default function EventFinancials() {
                   <span>Balance Due</span>
                   <span>{fmt(balanceDue)}</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Revenue Center Breakdown */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingDown className="w-4 h-4" /> Revenue Center Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs">
+                      <TableHead>Revenue Center</TableHead>
+                      <TableHead className="text-right">Charges</TableHead>
+                      <TableHead className="text-right">Adj. Charges</TableHead>
+                      <TableHead className="text-right">Sales Tax</TableHead>
+                      <TableHead className="text-right">Occ. Tax</TableHead>
+                      <TableHead className="text-right">Gratuity 22%</TableHead>
+                      <TableHead className="text-right font-bold">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rcBreakdown.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No revenue center data — add services to functions to see a breakdown.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {rcBreakdown.map((rc: any) => (
+                      <TableRow key={rc.revenueCenter}>
+                        <TableCell className="font-medium">{rc.revenueCenter}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(rc.charges)}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(rc.adjustedCharges)}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(rc.salesTax)}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(rc.occupancyTax)}</TableCell>
+                        <TableCell className="text-right text-sm">{fmt(rc.gratuity)}</TableCell>
+                        <TableCell className="text-right font-semibold">{fmt(rc.total)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {rcBreakdown.length > 1 && (
+                      <TableRow className="bg-muted/30 font-bold">
+                        <TableCell>Totals</TableCell>
+                        <TableCell className="text-right">{fmt(totals?.charges)}</TableCell>
+                        <TableCell className="text-right">{fmt(totals?.adjustedCharges)}</TableCell>
+                        <TableCell className="text-right">{fmt(totals?.salesTax)}</TableCell>
+                        <TableCell className="text-right">{fmt(totals?.occupancyTax)}</TableCell>
+                        <TableCell className="text-right">{fmt(totals?.gratuity)}</TableCell>
+                        <TableCell className="text-right text-primary">{fmt(totals?.total)}</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>

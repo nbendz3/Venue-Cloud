@@ -59,6 +59,8 @@ async function getFunctionCharges(functionId: number) {
   return charges;
 }
 
+type RCBreakdown = { charges: number; adjustedCharges: number; salesTax: number; occupancyTax: number; gratuity: number; total: number; cost: number };
+
 // GET /events/:id/financials
 router.get("/:id/financials", async (req, res) => {
   try {
@@ -78,6 +80,9 @@ router.get("/:id/financials", async (req, res) => {
     const revCenterMap: Record<number, typeof revCenters[0]> = {};
     for (const rc of revCenters) revCenterMap[rc.id] = rc;
 
+    // Event-level revenue center aggregation
+    const eventRCBreakdown: Record<string, RCBreakdown> = {};
+
     const functionRows = await Promise.all(
       fns.map(async (fn) => {
         const chargesByRC = await getFunctionCharges(fn.id);
@@ -94,15 +99,33 @@ router.get("/:id/financials", async (req, res) => {
         let totalSalesTax = 0;
         let totalOccupancyTax = 0;
 
+        const rcCount = Math.max(1, Object.keys(chargesByRC).length);
         for (const [rcName, { charges, cost }] of Object.entries(chargesByRC)) {
           const rc = revCenters.find(r => r.name === rcName);
           const salesTaxRate = parseFloat(rc?.salesTaxRate ?? "0") || 0;
           const occupancyTaxRate = parseFloat(rc?.occupancyTaxRate ?? "0") || 0;
-          const adjustedCharges = Math.max(0, charges - (totalAdj / Object.keys(chargesByRC).length));
+          const adjShare = totalAdj / rcCount;
+          const rcAdjCharges = Math.max(0, charges - adjShare);
+          const rcGratuity = rcAdjCharges * gratuityRate;
+          const rcSalesTax = rcAdjCharges * (salesTaxRate / 100);
+          const rcOccTax = rcAdjCharges * (occupancyTaxRate / 100);
+          const rcTotal = rcAdjCharges + rcSalesTax + rcOccTax + rcGratuity;
+
           totalCharges += charges;
           totalCost += cost;
-          totalSalesTax += adjustedCharges * (salesTaxRate / 100);
-          totalOccupancyTax += adjustedCharges * (occupancyTaxRate / 100);
+          totalSalesTax += rcSalesTax;
+          totalOccupancyTax += rcOccTax;
+
+          if (!eventRCBreakdown[rcName]) {
+            eventRCBreakdown[rcName] = { charges: 0, adjustedCharges: 0, salesTax: 0, occupancyTax: 0, gratuity: 0, total: 0, cost: 0 };
+          }
+          eventRCBreakdown[rcName].charges += charges;
+          eventRCBreakdown[rcName].adjustedCharges += rcAdjCharges;
+          eventRCBreakdown[rcName].salesTax += rcSalesTax;
+          eventRCBreakdown[rcName].occupancyTax += rcOccTax;
+          eventRCBreakdown[rcName].gratuity += rcGratuity;
+          eventRCBreakdown[rcName].total += rcTotal;
+          eventRCBreakdown[rcName].cost += cost;
         }
 
         const adjustedCharges = Math.max(0, totalCharges - totalAdj);
@@ -127,6 +150,19 @@ router.get("/:id/financials", async (req, res) => {
         };
       })
     );
+
+    const revenueCenterBreakdown = Object.entries(eventRCBreakdown)
+      .sort((a, b) => b[1].charges - a[1].charges)
+      .map(([name, data]) => ({
+        revenueCenter: name,
+        charges: Math.round(data.charges * 100) / 100,
+        adjustedCharges: Math.round(data.adjustedCharges * 100) / 100,
+        salesTax: Math.round(data.salesTax * 100) / 100,
+        occupancyTax: Math.round(data.occupancyTax * 100) / 100,
+        gratuity: Math.round(data.gratuity * 100) / 100,
+        total: Math.round(data.total * 100) / 100,
+        cost: Math.round(data.cost * 100) / 100,
+      }));
 
     const totals = functionRows.reduce(
       (acc, fn) => ({
@@ -166,6 +202,7 @@ router.get("/:id/financials", async (req, res) => {
       totals: Object.fromEntries(
         Object.entries(totals).map(([k, v]) => [k, Math.round((v as number) * 100) / 100])
       ),
+      revenueCenterBreakdown,
       paymentsReceived: Math.round(paymentsReceived * 100) / 100,
       balanceDue: Math.round(balanceDue * 100) / 100,
       payments: eventPayments,

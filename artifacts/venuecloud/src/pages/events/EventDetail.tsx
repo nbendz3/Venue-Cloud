@@ -144,13 +144,13 @@ export default function EventDetail() {
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
           {SECTIONS.map((section, idx) => (
-            <a 
-              key={section} 
-              href={`#section-${idx}`}
-              className="block px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            <button
+              key={section}
+              onClick={() => document.getElementById(`section-${idx}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="block w-full text-left px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               {section}
-            </a>
+            </button>
           ))}
           <div className="border-t my-2" />
           <Link
@@ -751,7 +751,7 @@ export default function EventDetail() {
                                 <TableHead className="whitespace-nowrap">Event Status</TableHead>
                                 <TableHead className="whitespace-nowrap">Event Status Phase</TableHead>
                                 <TableHead className="whitespace-nowrap text-right">Financial Snapshot</TableHead>
-                                <TableHead className="whitespace-nowrap">Date Processed</TableHead>
+                                <TableHead className="whitespace-nowrap min-w-[130px]">Date Processed</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
