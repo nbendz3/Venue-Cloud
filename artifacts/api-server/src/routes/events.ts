@@ -1,7 +1,65 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eventsTable, contactsTable, accountsTable } from "@workspace/db";
-import { eq, ilike, or, and } from "drizzle-orm";
+import { eventsTable, contactsTable, accountsTable, eventLifecycleHistoryTable, functionsTable, serviceItemsTable } from "@workspace/db";
+import { eq, ilike, or, and, inArray } from "drizzle-orm";
+
+type LifecycleStage = { action: string; eventStatus: string; eventStatusPhase: string };
+
+const LIFECYCLE_STAGES: Record<string, LifecycleStage[]> = {
+  Standard: [
+    { action: "New", eventStatus: "New", eventStatusPhase: "Prospect" },
+    { action: "Process Inquiry", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Send Proposal", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 1", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 2", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 3", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 4", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 5", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Tentative", eventStatus: "Tentative", eventStatusPhase: "Tentative" },
+    { action: "Confirm", eventStatus: "Definite", eventStatusPhase: "Definite" },
+    { action: "Complete Event Order", eventStatus: "Event Order", eventStatusPhase: "Event Order" },
+    { action: "Guarantee", eventStatus: "Definite", eventStatusPhase: "Guaranteed" },
+    { action: "Actualize", eventStatus: "Actualized", eventStatusPhase: "Actualized" },
+    { action: "Send Thank You", eventStatus: "Actualized", eventStatusPhase: "Thank You" },
+    { action: "Close", eventStatus: "Actualized", eventStatusPhase: "Closed" },
+    { action: "Cancel / Deny Event", eventStatus: "Cancelled", eventStatusPhase: "Cancelled" },
+  ],
+  Wedding: [
+    { action: "New", eventStatus: "New", eventStatusPhase: "Prospect" },
+    { action: "Process Inquiry", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Send Proposal", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Process Tentative", eventStatus: "Tentative", eventStatusPhase: "Tentative" },
+    { action: "Confirm", eventStatus: "Definite", eventStatusPhase: "Definite" },
+    { action: "Complete Event Order", eventStatus: "Event Order", eventStatusPhase: "Event Order" },
+    { action: "Guarantee", eventStatus: "Definite", eventStatusPhase: "Guaranteed" },
+    { action: "Actualize", eventStatus: "Actualized", eventStatusPhase: "Actualized" },
+    { action: "Send Thank You", eventStatus: "Actualized", eventStatusPhase: "Thank You" },
+    { action: "Close", eventStatus: "Actualized", eventStatusPhase: "Closed" },
+    { action: "Cancel / Deny Event", eventStatus: "Cancelled", eventStatusPhase: "Cancelled" },
+  ],
+  Corporate: [
+    { action: "New", eventStatus: "New", eventStatusPhase: "Prospect" },
+    { action: "Process Inquiry", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Send Proposal", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Process Hold 1", eventStatus: "Tentative", eventStatusPhase: "Prospect" },
+    { action: "Process Tentative", eventStatus: "Tentative", eventStatusPhase: "Tentative" },
+    { action: "Confirm", eventStatus: "Definite", eventStatusPhase: "Definite" },
+    { action: "Complete Event Order", eventStatus: "Event Order", eventStatusPhase: "Event Order" },
+    { action: "Actualize", eventStatus: "Actualized", eventStatusPhase: "Actualized" },
+    { action: "Close", eventStatus: "Actualized", eventStatusPhase: "Closed" },
+    { action: "Cancel / Deny Event", eventStatus: "Cancelled", eventStatusPhase: "Cancelled" },
+  ],
+  Social: [
+    { action: "New", eventStatus: "New", eventStatusPhase: "Prospect" },
+    { action: "Process Inquiry", eventStatus: "Inquiry", eventStatusPhase: "Prospect" },
+    { action: "Process Tentative", eventStatus: "Tentative", eventStatusPhase: "Tentative" },
+    { action: "Confirm", eventStatus: "Definite", eventStatusPhase: "Definite" },
+    { action: "Complete Event Order", eventStatus: "Event Order", eventStatusPhase: "Event Order" },
+    { action: "Actualize", eventStatus: "Actualized", eventStatusPhase: "Actualized" },
+    { action: "Close", eventStatus: "Actualized", eventStatusPhase: "Closed" },
+    { action: "Cancel / Deny Event", eventStatus: "Cancelled", eventStatusPhase: "Cancelled" },
+  ],
+};
 
 const router = Router();
 
@@ -240,6 +298,95 @@ router.post("/:id/functions", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to create function" });
+  }
+});
+
+router.get("/:id/lifecycle", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const evt = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
+    if (!evt) return res.status(404).json({ error: "Not found" });
+
+    const model = evt.lifecycleModel ?? "Standard";
+    const stages: LifecycleStage[] = LIFECYCLE_STAGES[model] ?? LIFECYCLE_STAGES.Standard;
+
+    const history = await db.query.eventLifecycleHistoryTable.findMany({
+      where: eq(eventLifecycleHistoryTable.eventId, id),
+    });
+
+    const historyByAction: Record<string, typeof history[0]> = {};
+    for (const h of history) {
+      historyByAction[h.action] = h;
+    }
+
+    const fns = await db.query.functionsTable.findMany({
+      where: eq(functionsTable.eventId, id),
+    });
+    const fnIds = fns.map((f) => f.id);
+
+    let totalAdjustedCharges = 0;
+    if (fnIds.length > 0) {
+      const { serviceTypesTable } = await import("@workspace/db");
+      const { functionMenusTable } = await import("@workspace/db");
+      const menus = await db.query.functionMenusTable.findMany({
+        where: inArray(functionMenusTable.functionId, fnIds),
+      });
+      const menuIds = menus.map((m) => m.id);
+      if (menuIds.length > 0) {
+        const stypes = await db.query.serviceTypesTable.findMany({
+          where: inArray(serviceTypesTable.menuId, menuIds),
+        });
+        const stypeIds = stypes.map((s) => s.id);
+        if (stypeIds.length > 0) {
+          const items = await db.query.serviceItemsTable.findMany({
+            where: inArray(serviceItemsTable.serviceTypeId, stypeIds),
+          });
+          for (const item of items) {
+            const total = item.itemTotal
+              ? parseFloat(item.itemTotal)
+              : (parseFloat(item.quantity ?? "1") || 1) * (parseFloat(item.aLaCartePrice ?? "0") || 0);
+            totalAdjustedCharges += total;
+          }
+        }
+      }
+      for (const fn of fns) {
+        if (fn.roomRental) totalAdjustedCharges += parseFloat(fn.roomRental);
+      }
+    }
+
+    const merged = stages.map((stage) => {
+      const stamped = historyByAction[stage.action];
+      return {
+        ...stage,
+        id: stamped?.id ?? null,
+        dateProcessed: stamped?.dateProcessed ?? null,
+        financialSnapshot: stamped?.financialSnapshot ? parseFloat(stamped.financialSnapshot) : null,
+      };
+    });
+
+    res.json({
+      stages: merged,
+      totalAdjustedCharges: Math.round(totalAdjustedCharges * 100) / 100,
+      lifecycleModel: model,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch lifecycle" });
+  }
+});
+
+router.post("/:id/lifecycle", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { action, eventStatus, eventStatusPhase, financialSnapshot, dateProcessed } = req.body;
+    const [row] = await db
+      .insert(eventLifecycleHistoryTable)
+      .values({ eventId: id, action, eventStatus, eventStatusPhase, financialSnapshot, dateProcessed })
+      .returning();
+    res.status(201).json(row);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to stamp lifecycle" });
   }
 });
 

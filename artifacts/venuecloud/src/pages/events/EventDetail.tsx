@@ -1,4 +1,5 @@
 import { useGetEvent, useListEventFunctions } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,11 +42,34 @@ const SECTIONS = [
   "Function Attachments", "Last Updated"
 ];
 
+type LifecycleStageRow = {
+  action: string;
+  eventStatus: string;
+  eventStatusPhase: string;
+  id: number | null;
+  dateProcessed: string | null;
+  financialSnapshot: number | null;
+};
+
+type LifecycleData = {
+  stages: LifecycleStageRow[];
+  totalAdjustedCharges: number;
+  lifecycleModel: string;
+};
+
+const fmt$ = (n: number) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 export default function EventDetail() {
   const params = useParams();
   const eventId = Number(params.id);
   const { data: event, isLoading } = useGetEvent(eventId, { query: { enabled: !!eventId } as any });
   const { data: functions } = useListEventFunctions(eventId, { query: { enabled: !!eventId } as any });
+  const { data: lifecycle } = useQuery<LifecycleData>({
+    queryKey: ["/api/events", eventId, "lifecycle"],
+    queryFn: () => fetch(`/api/events/${eventId}/lifecycle`).then(r => r.json()),
+    enabled: !!eventId,
+  });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;
@@ -362,6 +386,7 @@ export default function EventDetail() {
             {/* Remaining sections — some with real content, rest as placeholders */}
             {SECTIONS.slice(3).map((section, idx) => {
               const sectionIdx = idx + 3;
+
               if (section === "Communication History") {
                 return (
                   <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
@@ -374,6 +399,118 @@ export default function EventDetail() {
                   </div>
                 );
               }
+
+              if (section === "Event Lifecycle") {
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Event Lifecycle</h2>
+                    <Card>
+                      <CardContent className="p-0">
+                        {/* Total adjusted charges header */}
+                        <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/30">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Event Total Adjusted Charges
+                          </span>
+                          <span className="text-base font-semibold">
+                            {lifecycle ? fmt$(lifecycle.totalAdjustedCharges) : "—"}
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead className="whitespace-nowrap">Action</TableHead>
+                                <TableHead className="whitespace-nowrap">Event Status</TableHead>
+                                <TableHead className="whitespace-nowrap">Event Status Phase</TableHead>
+                                <TableHead className="whitespace-nowrap text-right">Financial Snapshot</TableHead>
+                                <TableHead className="whitespace-nowrap">Date Processed</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {!lifecycle ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-sm">
+                                    Loading lifecycle stages…
+                                  </TableCell>
+                                </TableRow>
+                              ) : lifecycle.stages.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-sm">
+                                    No lifecycle stages configured.
+                                  </TableCell>
+                                </TableRow>
+                              ) : (
+                                lifecycle.stages.map((stage, i) => {
+                                  const isCompleted = !!stage.dateProcessed;
+                                  const isCancelled = stage.eventStatusPhase === "Cancelled";
+                                  return (
+                                    <TableRow
+                                      key={i}
+                                      className={
+                                        isCompleted
+                                          ? isCancelled
+                                            ? "bg-red-50/50 text-sm"
+                                            : "bg-green-50/40 text-sm"
+                                          : "text-sm text-muted-foreground"
+                                      }
+                                    >
+                                      <TableCell className="font-medium">
+                                        {isCompleted ? (
+                                          <span className="flex items-center gap-1.5">
+                                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isCancelled ? "bg-red-500" : "bg-green-500"}`} />
+                                            {stage.action}
+                                          </span>
+                                        ) : (
+                                          <span className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                                            {stage.action}
+                                          </span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        {isCompleted ? (
+                                          <Badge variant="outline" className={`text-xs ${getStatusColor(stage.eventStatus)}`}>
+                                            {stage.eventStatus}
+                                          </Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground">{stage.eventStatus}</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        <span className={isCompleted ? "font-medium" : "text-muted-foreground"}>
+                                          {stage.eventStatusPhase}
+                                        </span>
+                                      </TableCell>
+                                      <TableCell className="text-right font-mono text-sm">
+                                        {stage.financialSnapshot != null
+                                          ? fmt$(stage.financialSnapshot)
+                                          : <span className="text-muted-foreground">—</span>}
+                                      </TableCell>
+                                      <TableCell>
+                                        {stage.dateProcessed
+                                          ? <span className="font-medium">{new Date(stage.dateProcessed).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                                          : <span className="text-muted-foreground">—</span>}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {lifecycle && (
+                          <div className="px-5 py-2 border-t text-xs text-muted-foreground">
+                            Lifecycle Model: <span className="font-medium">{lifecycle.lifecycleModel}</span>
+                            {" · "}
+                            {lifecycle.stages.filter(s => !!s.dateProcessed).length} of {lifecycle.stages.length} stages completed
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              }
+
               return (
                 <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6 opacity-60">
                   <h2 className="text-lg font-semibold mb-4 pb-2 border-b">{section}</h2>
