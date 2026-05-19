@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { accountsTable } from "@workspace/db";
+import { accountsTable, contactsTable, eventsTable } from "@workspace/db";
 import { eq, ilike } from "drizzle-orm";
 
 const router = Router();
@@ -74,6 +74,24 @@ router.delete("/:id", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to delete account" });
+  }
+});
+
+// GET /accounts/:id/events — events whose primary contact belongs to this account
+router.get("/:id/events", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const contacts = await db.query.contactsTable.findMany({
+      where: eq(contactsTable.accountId, id),
+    });
+    const contactIds = contacts.map(c => c.id);
+    if (contactIds.length === 0) { res.json([]); return; }
+    const events = await db.query.eventsTable.findMany();
+    const filtered = events.filter(e => e.primaryContactId != null && contactIds.includes(e.primaryContactId));
+    res.json(filtered.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? "")));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch account events" });
   }
 });
 

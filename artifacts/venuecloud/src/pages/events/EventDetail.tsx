@@ -4,7 +4,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStatusColor } from "./EventsList";
 import { EventMoreActions } from "@/components/EventMoreActions";
@@ -319,6 +319,11 @@ export default function EventDetail() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-0.5">
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="View Function Detail">
+                                    <Link href={`/events/${eventId}/functions/${fn.id}`}>
+                                      <Eye className="w-3 h-3" />
+                                    </Link>
+                                  </Button>
                                   <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Edit Function">
                                     <Link href={`/events/${eventId}/functions/${fn.id}/edit`}>
                                       <Edit className="w-3 h-3" />

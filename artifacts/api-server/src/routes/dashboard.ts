@@ -123,4 +123,101 @@ router.get("/functions-today", async (req, res) => {
   }
 });
 
+router.get("/upcoming-events", async (req, res) => {
+  try {
+    const today = todayStr();
+    const events = await db.query.eventsTable.findMany();
+    const upcoming = events
+      .filter((e) => e.startDate && e.startDate >= today)
+      .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
+      .slice(0, 10);
+
+    const enriched = await Promise.all(
+      upcoming.map(async (e) => {
+        let accountName: string | null = null;
+        if (e.primaryContactId) {
+          const contact = await db.query.contactsTable.findFirst({
+            where: eq(contactsTable.id, e.primaryContactId),
+          });
+          if (contact?.accountId) {
+            const account = await db.query.accountsTable.findFirst({
+              where: eq(accountsTable.id, contact.accountId),
+            });
+            accountName = account?.name ?? null;
+          }
+        }
+        return { ...e, accountName };
+      })
+    );
+
+    res.json(enriched);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch upcoming events" });
+  }
+});
+
+router.get("/activity-feed", async (req, res) => {
+  try {
+    const [events, tasks, leads] = await Promise.all([
+      db.query.eventsTable.findMany(),
+      db.query.tasksTable.findMany(),
+      db.query.leadsTable.findMany(),
+    ]);
+
+    type FeedItem = {
+      id: number;
+      kind: string;
+      title: string;
+      subtitle: string;
+      ts: string;
+      linkHref: string;
+    };
+
+    const items: FeedItem[] = [];
+
+    for (const e of events) {
+      items.push({
+        id: e.id,
+        kind: "event",
+        title: e.eventName,
+        subtitle: `Event ${e.eventStatus} · ${e.eventNumber ?? `#${e.id}`}`,
+        ts: e.updatedAt.toISOString(),
+        linkHref: `/events/${e.id}`,
+      });
+    }
+
+    for (const t of tasks) {
+      items.push({
+        id: t.id,
+        kind: "task",
+        title: t.name,
+        subtitle: `Task · ${t.priority} priority · ${t.status}`,
+        ts: t.updatedAt.toISOString(),
+        linkHref: `/tasks`,
+      });
+    }
+
+    for (const l of leads) {
+      items.push({
+        id: l.id,
+        kind: "lead",
+        title: l.leadName,
+        subtitle: `Lead · ${l.leadStatus}`,
+        ts: l.updatedAt.toISOString(),
+        linkHref: `/leads/${l.id}`,
+      });
+    }
+
+    const sorted = items
+      .sort((a, b) => b.ts.localeCompare(a.ts))
+      .slice(0, 10);
+
+    res.json(sorted);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch activity feed" });
+  }
+});
+
 export default router;

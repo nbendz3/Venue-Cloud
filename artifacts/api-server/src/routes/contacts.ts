@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { contactsTable, accountsTable } from "@workspace/db";
+import { contactsTable, accountsTable, eventsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -94,6 +94,20 @@ router.delete("/:id", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to delete contact" });
+  }
+});
+
+// GET /contacts/:id/events — events where primaryContactId = this contact
+router.get("/:id/events", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const events = await db.query.eventsTable.findMany({
+      where: eq(eventsTable.primaryContactId, id),
+    });
+    res.json(events.sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? "")));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch contact events" });
   }
 });
 
