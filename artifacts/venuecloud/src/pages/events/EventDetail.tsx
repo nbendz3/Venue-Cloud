@@ -371,26 +371,18 @@ export default function EventDetail() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-0.5">
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="View Function Detail">
-                                    <Link href={`/events/${eventId}/functions/${fn.id}`}>
-                                      <Eye className="w-3 h-3" />
-                                    </Link>
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Edit Function">
-                                    <Link href={`/events/${eventId}/functions/${fn.id}/edit`}>
-                                      <Edit className="w-3 h-3" />
-                                    </Link>
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Service Menus (BEO)">
-                                    <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
-                                      <Utensils className="w-3 h-3" />
-                                    </Link>
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Financial Details">
-                                    <Link href={`/events/${eventId}/functions/${fn.id}/financials`}>
-                                      <DollarSign className="w-3 h-3" />
-                                    </Link>
-                                  </Button>
+                                  <Link href={`/events/${eventId}/functions/${fn.id}`} title="View Function Detail" className="inline-flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                    <Eye className="w-3 h-3" />
+                                  </Link>
+                                  <Link href={`/events/${eventId}/functions/${fn.id}/edit`} title="Edit Function" className="inline-flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                    <Edit className="w-3 h-3" />
+                                  </Link>
+                                  <Link href={`/events/${eventId}/functions/${fn.id}/services`} title="Service Menus (BEO)" className="inline-flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                    <Utensils className="w-3 h-3" />
+                                  </Link>
+                                  <Link href={`/events/${eventId}/functions/${fn.id}/financials`} title="Function Financial Details" className="inline-flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                    <DollarSign className="w-3 h-3" />
+                                  </Link>
                                 </div>
                               </TableCell>
                               <TableCell>
