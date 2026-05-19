@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { masterEventsTable, eventsTable, contactsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { masterEventsTable, eventsTable, contactsTable, functionsTable, locationsTable, functionMenusTable } from "@workspace/db";
+import { eq, desc, inArray } from "drizzle-orm";
 
 const router = Router();
 
@@ -50,6 +50,56 @@ router.post("/", async (req, res) => {
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to create master event" });
+  }
+});
+
+// GET /master-events/:id/functions — all functions across all events in this master event
+router.get("/:id/functions", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const events = await db.select({ id: eventsTable.id, eventName: eventsTable.eventName }).from(eventsTable).where(eq(eventsTable.masterEventId, id));
+    if (!events.length) return res.json([]);
+
+    const eventIds = events.map((e) => e.id);
+    const eventMap: Record<number, string> = {};
+    events.forEach((e) => { eventMap[e.id] = e.eventName; });
+
+    const fns = await db.select().from(functionsTable).where(inArray(functionsTable.eventId, eventIds));
+
+    // Get location names
+    const locationIds = [...new Set(fns.map((f) => f.locationId).filter(Boolean))] as number[];
+    const locationMap: Record<number, string> = {};
+    if (locationIds.length) {
+      const locs = await db.select({ id: locationsTable.id, name: locationsTable.name }).from(locationsTable).where(inArray(locationsTable.id, locationIds));
+      locs.forEach((l) => { locationMap[l.id] = l.name; });
+    }
+
+    // Check which functions have menus/services
+    const fnIds = fns.map((f) => f.id);
+    const serviceSet = new Set<number>();
+    if (fnIds.length) {
+      const menus = await db.select({ functionId: functionMenusTable.functionId }).from(functionMenusTable).where(inArray(functionMenusTable.functionId, fnIds));
+      menus.forEach((m) => { if (m.functionId) serviceSet.add(m.functionId); });
+    }
+
+    const result = fns.map((f) => ({
+      id: f.id,
+      eventId: f.eventId,
+      eventName: eventMap[f.eventId] ?? "",
+      functionName: f.functionName,
+      functionNumber: f.functionNumber,
+      functionDate: f.functionDate,
+      startTime: f.startTime,
+      endTime: f.endTime,
+      locationName: f.locationId ? (locationMap[f.locationId] ?? null) : null,
+      estimatedAttendance: f.estimatedAttendance,
+      hasServices: serviceSet.has(f.id),
+    }));
+
+    res.json(result);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Failed to fetch master event functions" });
   }
 });
 
