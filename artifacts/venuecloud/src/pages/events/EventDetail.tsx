@@ -209,7 +209,7 @@ export default function EventDetail() {
                                       <Edit className="w-3 h-3" />
                                     </Link>
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="BEO">
+                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Service Menus (BEO)">
                                     <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
                                       <Utensils className="w-3 h-3" />
                                     </Link>

@@ -105,6 +105,21 @@ function fmt(val: string | number | null | undefined) {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const DIETARY_OPTIONS = ["None","Vegetarian","Vegan","Gluten-Free","Kosher","Halal","Dairy-Free","Nut-Free","Low-Sodium","Low-Fat"];
+const CATEGORY_OPTIONS = ["Food","Beverage","Audio Visual","Labor","Setup","Décor","Rental","Miscellaneous"];
+const CATEGORY_SUB_OPTIONS: Record<string,string[]> = {
+  Food: ["Breakfast","Brunch","Lunch","Dinner","Hors d'Oeuvres","Dessert","Snack","Break"],
+  Beverage: ["Alcoholic","Non-Alcoholic","Coffee/Tea","Juice","Water"],
+  "Audio Visual": ["Equipment","Labor","Support"],
+  Labor: ["Setup","Breakdown","Service","Security","Valet"],
+  Setup: ["Tables","Chairs","Linens","Staging","Lighting"],
+  Décor: ["Floral","Centerpieces","Signage","Balloons"],
+  Rental: ["Equipment","Furniture","Specialty"],
+  Miscellaneous: ["Other"],
+};
+const QUANTITY_PRECISION_OPTIONS = ["0 decimal places","1 decimal place","2 decimal places","3 decimal places"];
+const HOURS_PRECISION_OPTIONS = ["0 decimal places","1 decimal place","2 decimal places"];
+
 type ServiceItemRow = {
   id: number;
   serviceTypeId: number;
@@ -119,10 +134,30 @@ type ServiceItemRow = {
   revenueCenterId?: number | null;
   appliedRates?: string | null;
   category?: string | null;
+  categorySubOption?: string | null;
+  categoryII?: string | null;
+  dietaryRestrictions?: string | null;
   itemTotal?: string | null;
   revenueCenterName?: string | null;
   chargeHourly?: boolean | null;
   numHours?: string | null;
+  useIngredientsCost?: boolean | null;
+  numberRequired?: string | null;
+  perNumberOfGuests?: string | null;
+  quantityPrecision?: string | null;
+  markItemInternal?: boolean | null;
+  markQuantityInternal?: boolean | null;
+  useFunctionTimeRange?: boolean | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  autoHours?: boolean | null;
+  useFunctionSetupTeardownTimes?: boolean | null;
+  setupMinutes?: string | null;
+  teardownMinutes?: string | null;
+  applyOvertimeHoursCharges?: boolean | null;
+  overtimeHoursPrice?: string | null;
+  overtimeHours?: string | null;
+  hoursPrecision?: string | null;
 };
 
 function ServiceItemRow({
@@ -136,6 +171,7 @@ function ServiceItemRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showAllDetails, setShowAllDetails] = useState(false);
   const [form, setForm] = useState({ ...item });
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -206,6 +242,11 @@ function ServiceItemRow({
             </button>
           </div>
         </TableCell>
+        <TableCell className="text-center text-base" title={(item as any).dietaryRestrictions ?? ""}>
+          {(item as any).dietaryRestrictions && (item as any).dietaryRestrictions !== "None"
+            ? "🌿"
+            : <span className="text-muted-foreground text-xs">—</span>}
+        </TableCell>
         <TableCell className="font-medium">{item.itemName}</TableCell>
         <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
           {item.notes ?? "—"}
@@ -233,10 +274,12 @@ function ServiceItemRow({
         <TableCell className="text-sm">{item.revenueCenterName ?? "—"}</TableCell>
         <TableCell className="text-sm">{item.appliedRates ?? "—"}</TableCell>
         <TableCell className="text-sm">{item.category ?? "—"}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">{(item as any).categorySubOption ?? "—"}</TableCell>
+        <TableCell className="text-sm text-muted-foreground">{(item as any).categoryII ?? "—"}</TableCell>
       </TableRow>
       {expanded && (
         <TableRow className="bg-muted/20">
-          <TableCell colSpan={13} className="py-4 px-6">
+          <TableCell colSpan={16} className="py-4 px-6">
             <div className="grid grid-cols-2 gap-6 text-sm">
               <div className="space-y-3">
                 <div>
@@ -281,55 +324,218 @@ function ServiceItemRow({
         </TableRow>
       )}
       {editing && (
-        <Dialog open onOpenChange={() => setEditing(false)}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open onOpenChange={() => { setEditing(false); setShowAllDetails(false); }}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Edit Service Item</DialogTitle>
+              <DialogTitle>Edit Service Item — {item.itemName}</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-2">
+
+            {/* ── Basic Fields ── */}
+            <div className="grid grid-cols-2 gap-3 py-2">
               <div className="col-span-2">
-                <Label>Item Name</Label>
-                <Input value={form.itemName} onChange={(e) => setForm({ ...form, itemName: e.target.value })} />
+                <Label className="text-xs">Item Name *</Label>
+                <Input className="mt-1" value={form.itemName} onChange={e => setForm({ ...form, itemName: e.target.value })} />
               </div>
               <div className="col-span-2">
-                <Label>Description</Label>
-                <Textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <Label className="text-xs">Notes</Label>
+                <Textarea className="mt-1 text-sm" rows={2} value={form.notes ?? ""} onChange={e => setForm({ ...form, notes: e.target.value })} />
+              </div>
+              <div className="flex items-center gap-2 col-span-2">
+                <Checkbox checked={!!form.notesInternal} onCheckedChange={v => setForm({ ...form, notesInternal: !!v })} />
+                <Label className="text-sm">Notes Internal (hidden on client BEO)</Label>
+              </div>
+
+              <div>
+                <Label className="text-xs">Quantity</Label>
+                <Input className="mt-1" type="number" value={form.quantity ?? ""} onChange={e => setForm({ ...form, quantity: e.target.value })} />
               </div>
               <div>
-                <Label>A La Carte Price</Label>
-                <Input type="number" value={form.aLaCartePrice ?? ""} onChange={(e) => setForm({ ...form, aLaCartePrice: e.target.value })} />
+                <Label className="text-xs">A La Carte Price</Label>
+                <Input className="mt-1" type="number" value={form.aLaCartePrice ?? ""} onChange={e => setForm({ ...form, aLaCartePrice: e.target.value })} />
               </div>
               <div>
-                <Label>Add-On Price</Label>
-                <Input type="number" value={form.addOnPrice ?? ""} onChange={(e) => setForm({ ...form, addOnPrice: e.target.value })} />
+                <Label className="text-xs">Add-On Price</Label>
+                <Input className="mt-1" type="number" value={form.addOnPrice ?? ""} onChange={e => setForm({ ...form, addOnPrice: e.target.value })} />
               </div>
               <div>
-                <Label>Cost</Label>
-                <Input type="number" value={form.cost ?? ""} onChange={(e) => setForm({ ...form, cost: e.target.value })} />
+                <Label className="text-xs">Revenue Center</Label>
+                <Input className="mt-1" value={form.revenueCenterName ?? ""} onChange={e => setForm({ ...form, revenueCenterName: e.target.value })} />
               </div>
               <div>
-                <Label>Quantity</Label>
-                <Input type="number" value={form.quantity ?? ""} onChange={(e) => setForm({ ...form, quantity: e.target.value })} />
-              </div>
-              <div>
-                <Label>Applied Rates</Label>
-                <Select value={form.appliedRates ?? ""} onValueChange={(v) => setForm({ ...form, appliedRates: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Label className="text-xs">Applied Rates</Label>
+                <Select value={form.appliedRates ?? "_none_"} onValueChange={v => setForm({ ...form, appliedRates: v === "_none_" ? "" : v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>{APPLIED_RATES_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Category</Label>
-                <Input value={form.category ?? ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                <Label className="text-xs">Category</Label>
+                <Select value={form.category ?? "_none_"} onValueChange={v => setForm({ ...form, category: v === "_none_" ? "" : v, categorySubOption: "" })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">— None —</SelectItem>
+                    {CATEGORY_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="col-span-2">
-                <Label>Notes</Label>
-                <Textarea value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <div>
+                <Label className="text-xs">Category Sub Option</Label>
+                <Select value={form.categorySubOption ?? "_none_"} onValueChange={v => setForm({ ...form, categorySubOption: v === "_none_" ? "" : v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">— None —</SelectItem>
+                    {(CATEGORY_SUB_OPTIONS[form.category ?? ""] ?? []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Category II</Label>
+                <Input className="mt-1" value={(form as any).categoryII ?? ""} onChange={e => setForm({ ...form, ...({"categoryII": e.target.value} as any) })} />
+              </div>
+              <div>
+                <Label className="text-xs">Dietary Restrictions</Label>
+                <Select value={(form as any).dietaryRestrictions ?? "_none_"} onValueChange={v => setForm({ ...form, ...({"dietaryRestrictions": v === "_none_" ? "" : v} as any) })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">None</SelectItem>
+                    {DIETARY_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button onClick={save} disabled={updateItem.isPending}>Save</Button>
+
+            {/* ── Show All Item Details toggle ── */}
+            <div className="border-t pt-3">
+              <button
+                className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
+                onClick={() => setShowAllDetails(p => !p)}
+              >
+                {showAllDetails ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                {showAllDetails ? "Hide" : "Show All"} Item Details
+              </button>
+
+              {showAllDetails && (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Cost</Label>
+                    <Input className="mt-1" type="number" value={form.cost ?? ""} onChange={e => setForm({ ...form, cost: e.target.value })} />
+                  </div>
+                  <div className="flex items-center gap-2 self-end pb-1">
+                    <Checkbox checked={!!(form as any).useIngredientsCost} onCheckedChange={v => setForm({ ...form, ...({ useIngredientsCost: !!v } as any) })} />
+                    <Label className="text-sm">Use Ingredients Cost</Label>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Number Required</Label>
+                    <Input className="mt-1" type="number" value={(form as any).numberRequired ?? ""} onChange={e => setForm({ ...form, ...({ numberRequired: e.target.value } as any) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Per Number of Guests</Label>
+                    <Input className="mt-1" type="number" value={(form as any).perNumberOfGuests ?? ""} onChange={e => setForm({ ...form, ...({ perNumberOfGuests: e.target.value } as any) })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Quantity Precision</Label>
+                    <Select value={(form as any).quantityPrecision ?? "_none_"} onValueChange={v => setForm({ ...form, ...({ quantityPrecision: v === "_none_" ? "" : v } as any) })}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none_">— Default —</SelectItem>
+                        {QUANTITY_PRECISION_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2 col-span-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={!!(form as any).markItemInternal} onCheckedChange={v => setForm({ ...form, ...({ markItemInternal: !!v } as any) })} />
+                      <Label className="text-sm">Mark Item Internal (hidden on client BEO)</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={!!(form as any).markQuantityInternal} onCheckedChange={v => setForm({ ...form, ...({ markQuantityInternal: !!v } as any) })} />
+                      <Label className="text-sm">Mark Quantity Internal</Label>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Time Settings</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2 col-span-2">
+                        <Checkbox checked={!!(form as any).useFunctionTimeRange} onCheckedChange={v => setForm({ ...form, ...({ useFunctionTimeRange: !!v } as any) })} />
+                        <Label className="text-sm">Use Function Time Range</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Start Time</Label>
+                        <Input className="mt-1" type="time" value={(form as any).startTime ?? ""} onChange={e => setForm({ ...form, ...({ startTime: e.target.value } as any) })} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">End Time</Label>
+                        <Input className="mt-1" type="time" value={(form as any).endTime ?? ""} onChange={e => setForm({ ...form, ...({ endTime: e.target.value } as any) })} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Hourly Charges</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2">
+                        <Checkbox checked={!!form.chargeHourly} onCheckedChange={v => setForm({ ...form, chargeHourly: !!v })} />
+                        <Label className="text-sm">Charge Hourly</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox checked={!!(form as any).autoHours} onCheckedChange={v => setForm({ ...form, ...({ autoHours: !!v } as any) })} />
+                        <Label className="text-sm">Auto Hours</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs"># Hours</Label>
+                        <Input className="mt-1" type="number" value={form.numHours ?? ""} onChange={e => setForm({ ...form, numHours: e.target.value })} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Hours Precision</Label>
+                        <Select value={(form as any).hoursPrecision ?? "_none_"} onValueChange={v => setForm({ ...form, ...({ hoursPrecision: v === "_none_" ? "" : v } as any) })}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Default" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none_">— Default —</SelectItem>
+                            {HOURS_PRECISION_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2 col-span-2">
+                        <Checkbox checked={!!(form as any).useFunctionSetupTeardownTimes} onCheckedChange={v => setForm({ ...form, ...({ useFunctionSetupTeardownTimes: !!v } as any) })} />
+                        <Label className="text-sm">Use Function Setup and Teardown Times</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Setup Minutes</Label>
+                        <Input className="mt-1" type="number" value={(form as any).setupMinutes ?? ""} onChange={e => setForm({ ...form, ...({ setupMinutes: e.target.value } as any) })} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Teardown Minutes</Label>
+                        <Input className="mt-1" type="number" value={(form as any).teardownMinutes ?? ""} onChange={e => setForm({ ...form, ...({ teardownMinutes: e.target.value } as any) })} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 border-t pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Overtime</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-center gap-2 col-span-2">
+                        <Checkbox checked={!!(form as any).applyOvertimeHoursCharges} onCheckedChange={v => setForm({ ...form, ...({ applyOvertimeHoursCharges: !!v } as any) })} />
+                        <Label className="text-sm">Apply Overtime Hours Charges</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Overtime Hours Price</Label>
+                        <Input className="mt-1" type="number" value={(form as any).overtimeHoursPrice ?? ""} onChange={e => setForm({ ...form, ...({ overtimeHoursPrice: e.target.value } as any) })} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Overtime Hours</Label>
+                        <Input className="mt-1" type="number" value={(form as any).overtimeHours ?? ""} onChange={e => setForm({ ...form, ...({ overtimeHours: e.target.value } as any) })} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => { setEditing(false); setShowAllDetails(false); }}>Cancel</Button>
+              <Button onClick={save} disabled={updateItem.isPending}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -484,6 +690,7 @@ function ServiceTypeBlock({
               <TableRow className="text-xs">
                 <TableHead className="w-8"></TableHead>
                 <TableHead className="w-20">Actions</TableHead>
+                <TableHead className="w-8" title="Dietary">🍽</TableHead>
                 <TableHead>Item</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Internal</TableHead>
@@ -495,12 +702,14 @@ function ServiceTypeBlock({
                 <TableHead>Revenue Ctr</TableHead>
                 <TableHead>Applied Rates</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Cat. Sub Option</TableHead>
+                <TableHead>Category II</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {serviceType.items?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center text-muted-foreground py-6 text-sm">
+                  <TableCell colSpan={16} className="text-center text-muted-foreground py-6 text-sm">
                     No items yet. Use the buttons above to add items.
                   </TableCell>
                 </TableRow>

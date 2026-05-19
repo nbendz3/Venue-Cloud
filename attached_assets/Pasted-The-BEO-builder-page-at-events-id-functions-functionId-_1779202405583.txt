@@ -1,0 +1,28 @@
+The BEO builder page at /events/:id/functions/:functionId/services currently returns a 404. Fix this by:
+
+1. Add the route to the router
+2. Build the Function Services (BEO) page with this exact 3-level structure:
+
+PAGE LEVEL:
+- Header shows Function name, date, and location
+- Toolbar buttons: "..." menu with options: Reorder Menus, Copy Services, View Financial Details, View Function Details, View Daily Menu Mix
+- "Add Menu" button to add a new menu from a template library
+
+MENU LEVEL (each menu is a collapsible card):
+- Menu header shows: Menu Name, Pricing Type (Per Person / A La Carte / Inclusive), Quantity, Auto Calculate Quantity toggle
+- "..." menu per menu card: Add New Menu, Delete Menu, Add Service Types, Reorder Service Types/Items
+
+SERVICE TYPE LEVEL (inside each menu):
+- Service Type name as a sub-header
+- "..." menu per service type: Delete Service Type, Add Items from Menu, Add Items from Master List, View/Add Related Service Items, Reorder Service Types/Items
+
+ITEM LEVEL (inside each service type, shown as a table):
+Columns: checkbox | Actions (Edit, Delete) | dietary icon | Item Name | Notes | Notes Internal | Quantity | A La Carte Price | Add-On Price | # Hours | Total | Revenue Center | Applied Rates | Category | Category Sub Option | Category II
+
+When editing an item (Edit button), show a form with these fields:
+Basic: Item Name, Notes, Notes Internal, Quantity, A La Carte Price, Add-On Price, Revenue Center, Applied Rates, Category, Category Sub Option, Category II, Dietary Restrictions
+
+"Show All Item Details" expansion reveals:
+Cost, Use Ingredients Cost (checkbox), Number Required, Per Number of Guests, Quantity Precision, Mark Item Internal (checkbox), Mark Quantity Internal (checkbox), Use Function Time Range (checkbox), Start Time, End Time, Charge Hourly (checkbox), Auto Hours (checkbox), # Hours, Use Function Setup and Teardown Times (checkbox), Setup Minutes, Teardown Minutes, Apply Overtime Hours Charges (checkbox), Overtime Hours Price, Overtime Hours, Hours Precision
+
+Also add a "Service Menus" icon button in the Functions table on the Event Detail page that links to this route.
