@@ -941,7 +941,7 @@ export default function EventDetail() {
                 if (event.createdAt) {
                   items.push({ date: new Date(event.createdAt).toISOString().split("T")[0], label: "Lead Created", kind: "created" });
                 }
-                if (lifecycle) {
+                if (lifecycle?.stages) {
                   lifecycle.stages
                     .filter((s) => !!s.dateProcessed)
                     .forEach((s) => items.push({ date: s.dateProcessed!, label: s.action, sublabel: s.eventStatus, kind: "lifecycle" }));
@@ -1619,14 +1619,14 @@ export default function EventDetail() {
                                     Loading lifecycle stages…
                                   </TableCell>
                                 </TableRow>
-                              ) : lifecycle.stages.length === 0 ? (
+                              ) : (lifecycle.stages ?? []).length === 0 ? (
                                 <TableRow>
                                   <TableCell colSpan={5} className="text-center text-muted-foreground py-8 text-sm">
                                     No lifecycle stages configured.
                                   </TableCell>
                                 </TableRow>
                               ) : (
-                                lifecycle.stages.map((stage, i) => {
+                                (lifecycle.stages ?? []).map((stage, i) => {
                                   const isCompleted = !!stage.dateProcessed;
                                   const isCancelled = stage.eventStatusPhase === "Cancelled";
                                   return (
@@ -1688,7 +1688,7 @@ export default function EventDetail() {
                           <div className="px-5 py-2 border-t text-xs text-muted-foreground">
                             Lifecycle Model: <span className="font-medium">{lifecycle.lifecycleModel}</span>
                             {" · "}
-                            {lifecycle.stages.filter(s => !!s.dateProcessed).length} of {lifecycle.stages.length} stages completed
+                            {(lifecycle.stages ?? []).filter(s => !!s.dateProcessed).length} of {(lifecycle.stages ?? []).length} stages completed
                           </div>
                         )}
                       </CardContent>

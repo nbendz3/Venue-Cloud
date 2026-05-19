@@ -334,7 +334,7 @@ router.get("/:id/lifecycle", async (req, res) => {
       const menuIds = menus.map((m) => m.id);
       if (menuIds.length > 0) {
         const stypes = await db.query.serviceTypesTable.findMany({
-          where: inArray(serviceTypesTable.menuId, menuIds),
+          where: inArray(serviceTypesTable.functionMenuId, menuIds),
         });
         const stypeIds = stypes.map((s) => s.id);
         if (stypeIds.length > 0) {
