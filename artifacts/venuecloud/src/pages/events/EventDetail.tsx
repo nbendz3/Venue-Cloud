@@ -17,6 +17,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground mb-0.5 uppercase tracking-wide">{label}</div>
+      <div className="text-sm">{children}</div>
+    </div>
+  );
+}
+
 const SECTIONS = [
   "Event Details", "Billing Details", "Functions", "Guest Room Blocks", 
   "Personnel", "Event Timeline", "Contacts", "Event Lifecycle", 
@@ -103,37 +112,84 @@ export default function EventDetail() {
             <div id="section-0" className="scroll-mt-6">
               <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Event Details</h2>
               <Card>
-                <CardContent className="p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Account</div>
-                    <div className="font-medium">{event.accountName || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Primary Contact</div>
-                    <div className="font-medium">{event.primaryContactName || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Dates</div>
-                    <div className="font-medium">
-                      {event.startDate ? new Date(event.startDate).toLocaleDateString() : 'TBD'}
-                      {event.endDate && event.endDate !== event.startDate ? ` - ${new Date(event.endDate).toLocaleDateString()}` : ''}
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-5">
+                    {/* LEFT COLUMN */}
+                    <div className="space-y-5">
+                      <DetailField label="Primary Contact">
+                        {(event as any).primaryContactId
+                          ? <Link href={`/contacts/${(event as any).primaryContactId}`} className="text-primary hover:underline font-medium">{(event as any).primaryContactName || '—'}</Link>
+                          : <span className="font-medium">{(event as any).primaryContactName || '—'}</span>}
+                      </DetailField>
+                      <DetailField label="Primary Contact Account">
+                        <span className="font-medium">{(event as any).accountName || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Event Name">
+                        <span className="font-medium">{event.eventName}</span>
+                      </DetailField>
+                      <DetailField label="Group Master Account">
+                        <span className="font-medium">{(event as any).groupMasterAccount || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Event Type">
+                        <span className="font-medium">{event.eventType || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Event Category">
+                        <span className="font-medium">{(event as any).eventCategory || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Market Type">
+                        <span className="font-medium">{(event as any).marketType || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Referral Type">
+                        <span className="font-medium">{(event as any).referralType || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Estimated Attendance">
+                        <span className="font-medium">{(event as any).estimatedAttendance ?? '—'}</span>
+                      </DetailField>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Event Type</div>
-                    <div className="font-medium">{event.eventType || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Market Type</div>
-                    <div className="font-medium">{event.marketType || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Est. Attendance</div>
-                    <div className="font-medium">{event.estimatedAttendance || '-'}</div>
-                  </div>
-                  <div className="col-span-full">
-                    <div className="text-sm text-muted-foreground mb-1">Description / Notes</div>
-                    <div className="font-medium whitespace-pre-wrap">{event.eventNote || '-'}</div>
+
+                    {/* RIGHT COLUMN */}
+                    <div className="space-y-5">
+                      <DetailField label="Owner">
+                        <span className="font-medium">{(event as any).owner || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Salesperson">
+                        <span className="font-medium">{(event as any).salesperson || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Event Number">
+                        <span className="font-medium font-mono">{event.eventNumber || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Start Date">
+                        {event.startDate
+                          ? <Link href={`/events/calendar`} className="text-primary hover:underline font-medium">
+                              {new Date(event.startDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                            </Link>
+                          : <span className="font-medium">TBD</span>}
+                      </DetailField>
+                      <DetailField label="End Date">
+                        <span className="font-medium">
+                          {event.endDate ? new Date(event.endDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '—'}
+                        </span>
+                      </DetailField>
+                      <DetailField label="Event Lifecycle Model">
+                        <span className="font-medium">{(event as any).lifecycleModel || '—'}</span>
+                      </DetailField>
+                      <DetailField label="PMS Group Number">
+                        <span className="font-medium">{(event as any).pmsGroupNumber || '—'}</span>
+                      </DetailField>
+                      <DetailField label="Event Status">
+                        <Badge className={getStatusColor(event.eventStatus)}>{event.eventStatus}</Badge>
+                      </DetailField>
+                      <DetailField label="Site">
+                        <span className="font-medium">{(event as any).site || '—'}</span>
+                      </DetailField>
+                    </div>
+
+                    {/* Event Note — full width */}
+                    <div className="col-span-2 border-t pt-4">
+                      <DetailField label="Event Note">
+                        <p className="font-medium whitespace-pre-wrap text-sm">{(event as any).eventNote || '—'}</p>
+                      </DetailField>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -143,18 +199,24 @@ export default function EventDetail() {
             <div id="section-1" className="scroll-mt-6">
               <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Billing Details</h2>
               <Card>
-                <CardContent className="p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Payment Arrangements</div>
-                    <div className="font-medium">{event.paymentArrangements || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">Tax Exempt</div>
-                    <div className="font-medium">{event.taxExempt ? 'Yes' : 'No'}</div>
-                  </div>
-                  <div className="col-span-full">
-                    <div className="text-sm text-muted-foreground mb-1">Billing Notes</div>
-                    <div className="font-medium whitespace-pre-wrap">{event.billingNotes || '-'}</div>
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-5">
+                    <DetailField label="Payment Arrangements">
+                      <span className="font-medium">{(event as any).paymentArrangements || '—'}</span>
+                    </DetailField>
+                    <DetailField label="Billing Contact">
+                      {(event as any).billingContactId
+                        ? <Link href={`/contacts/${(event as any).billingContactId}`} className="text-primary hover:underline font-medium">{(event as any).billingContactName || `Contact #${(event as any).billingContactId}`}</Link>
+                        : <span className="font-medium">—</span>}
+                    </DetailField>
+                    <DetailField label="Tax Exempt">
+                      <span className="font-medium">{(event as any).taxExempt ? 'Yes' : 'No'}</span>
+                    </DetailField>
+                    <div className="col-span-2 border-t pt-4">
+                      <DetailField label="Billing Notes">
+                        <p className="font-medium whitespace-pre-wrap text-sm">{(event as any).billingNotes || '—'}</p>
+                      </DetailField>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

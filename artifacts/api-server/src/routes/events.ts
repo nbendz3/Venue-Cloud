@@ -123,6 +123,7 @@ router.get("/:id", async (req, res) => {
     if (!evt) return res.status(404).json({ error: "Not found" });
     let primaryContactName = null;
     let accountName = null;
+    let billingContactName = null;
     if (evt.primaryContactId) {
       const contact = await db.query.contactsTable.findFirst({
         where: eq(contactsTable.id, evt.primaryContactId),
@@ -137,7 +138,15 @@ router.get("/:id", async (req, res) => {
         }
       }
     }
-    res.json({ ...evt, primaryContactName, accountName });
+    if (evt.billingContactId && evt.billingContactId !== evt.primaryContactId) {
+      const bc = await db.query.contactsTable.findFirst({
+        where: eq(contactsTable.id, evt.billingContactId),
+      });
+      if (bc) billingContactName = `${bc.firstName} ${bc.lastName}`;
+    } else if (evt.billingContactId && evt.billingContactId === evt.primaryContactId) {
+      billingContactName = primaryContactName;
+    }
+    res.json({ ...evt, primaryContactName, accountName, billingContactName });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Failed to fetch event" });

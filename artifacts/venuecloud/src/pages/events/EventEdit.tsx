@@ -41,7 +41,7 @@ export default function EventEdit() {
     startDate: "", endDate: "", eventType: "", eventCategory: "", marketType: "",
     referralType: "", estimatedAttendance: "", eventNote: "", paymentArrangements: "",
     billingNotes: "", taxExempt: false, owner: "Sarah Johnson", salesperson: "Sarah Johnson",
-    eventLifecycleModel: "Standard",
+    lifecycleModel: "Standard", groupMasterAccount: "", pmsGroupNumber: "",
   });
 
   useEffect(() => { if (existing) setForm(existing as any); }, [existing]);
@@ -126,13 +126,15 @@ export default function EventEdit() {
             </F>
             <F label="Estimated Attendance"><Input type="number" value={String(form.estimatedAttendance||"")} onChange={e=>set("estimatedAttendance",e.target.value)} /></F>
             <F label="Event Lifecycle Model">
-              <Select value={String(form.eventLifecycleModel||"Standard")} onValueChange={v=>set("eventLifecycleModel",v)}>
+              <Select value={String(form.lifecycleModel||"Standard")} onValueChange={v=>set("lifecycleModel",v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{LIFECYCLE_MODELS.map(m=><SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
               </Select>
             </F>
             <F label="Owner" required><Input value={String(form.owner||"")} onChange={e=>set("owner",e.target.value)} /></F>
             <F label="Salesperson" required><Input value={String(form.salesperson||"")} onChange={e=>set("salesperson",e.target.value)} /></F>
+            <F label="Group Master Account"><Input value={String(form.groupMasterAccount||"")} onChange={e=>set("groupMasterAccount",e.target.value)} /></F>
+            <F label="PMS Group Number"><Input value={String(form.pmsGroupNumber||"")} onChange={e=>set("pmsGroupNumber",e.target.value)} /></F>
             {!isNew && <F label="Event Number"><Input value={String(form.eventNumber||"")} disabled className="bg-gray-50" /></F>}
             <div className="col-span-2">
               <F label="Event Note"><Textarea rows={3} value={String(form.eventNote||"")} onChange={e=>set("eventNote",e.target.value)} /></F>
