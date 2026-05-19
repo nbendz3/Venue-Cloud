@@ -69,8 +69,22 @@ export default function ReportNew() {
     r.description.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCreate = () => {
-    if (selected) navigate(`/reports/new/build?type=${encodeURIComponent(selected)}`);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!selected || creating) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportName: `New ${selected} Report`, reportType: selected }),
+      });
+      const created = await res.json();
+      navigate(`/reports/${created.id}/edit`);
+    } catch {
+      setCreating(false);
+    }
   };
 
   return (
@@ -129,8 +143,8 @@ export default function ReportNew() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button onClick={handleCreate} disabled={!selected}>
-          Create Report
+        <Button onClick={handleCreate} disabled={!selected || creating}>
+          {creating ? "Creating…" : "Create Report"}
         </Button>
         <Button variant="outline" asChild>
           <Link href="/reports">Cancel</Link>

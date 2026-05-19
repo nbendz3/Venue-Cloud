@@ -57,8 +57,7 @@ const DATE_TYPES: Record<string, string[]> = {
   "Function Adjustment": ["Adjustment Date", "Function Date", "Event Start Date", "Booking Date"],
 };
 const FOLDERS = [
-  "Event Reports","Financial Reports","Sales Reports","CRM Reports",
-  "Administrative","Custom Reports","Uncategorized",
+  "Dining", "Events", "Financial", "Marketing", "Administrative", "Custom Reports", "Uncategorized",
 ];
 
 /* ─── Comparator options by inferred field type ──────────────────── */
