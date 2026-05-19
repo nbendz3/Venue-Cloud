@@ -191,12 +191,14 @@ router.get("/:id/functions", async (req, res) => {
       fns.map(async (fn) => {
         let locationName = null;
         let locationCode = null;
+        let locationDescription = null;
         if (fn.locationId) {
           const loc = await db.query.locationsTable.findFirst({
             where: eq(locationsTable.id, fn.locationId),
           });
           locationName = loc?.name ?? null;
           locationCode = loc?.code ?? null;
+          locationDescription = loc?.description ?? null;
         }
         const evt = await db.query.eventsTable.findFirst({
           where: eq(eventsTable.id, fn.eventId),
@@ -204,8 +206,10 @@ router.get("/:id/functions", async (req, res) => {
         return {
           ...fn,
           roomRental: fn.roomRental ? parseFloat(fn.roomRental) : null,
+          minimumCharge: fn.minimumCharge ? parseFloat(fn.minimumCharge) : null,
           locationName,
           locationCode,
+          locationDescription,
           eventName: evt?.eventName ?? null,
         };
       })

@@ -5,9 +5,11 @@ import { z } from "zod/v4";
 export const functionsTable = pgTable("functions", {
   id: serial("id").primaryKey(),
   eventId: integer("event_id").notNull(),
+  functionName: text("function_name"),
   functionType: text("function_type"),
   functionDate: text("function_date"),
   locationId: integer("location_id"),
+  minimumCharge: numeric("minimum_charge", { precision: 10, scale: 2 }),
   startTime: text("start_time"),
   endTime: text("end_time"),
   setupMinutes: integer("setup_minutes"),

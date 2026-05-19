@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getStatusColor } from "./EventsList";
 import { EventMoreActions } from "@/components/EventMoreActions";
@@ -16,6 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -226,15 +233,35 @@ export default function EventDetail() {
             <div id="section-2" className="scroll-mt-6">
               <div className="flex items-center justify-between mb-4 pb-2 border-b">
                 <h2 className="text-lg font-semibold">Functions</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <Button size="sm" asChild>
                     <Link href={`/events/${eventId}/functions/new`}>
-                      <TrendingUp className="w-3.5 h-3.5 mr-1" /> New Function
+                      <Plus className="w-3.5 h-3.5 mr-1" /> New Function
                     </Link>
                   </Button>
                   <Button size="sm" variant="outline">Edit Functions</Button>
-                  <Button size="sm" variant="outline">Mass Edit Selected</Button>
-                  <Button size="sm" variant="outline">Copy Selected</Button>
+                  <Button size="sm" variant="outline">
+                    <Edit className="w-3 h-3 mr-1" /> Mass Edit Selected
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    <Copy className="w-3 h-3 mr-1" /> Copy Selected Functions
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    <XCircle className="w-3 h-3 mr-1" /> Cancel Selected Functions
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className="px-2">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>Cancel Function</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem>Print Function Sheet</DropdownMenuItem>
+                      <DropdownMenuItem>Export Functions</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               <Card>
@@ -243,40 +270,42 @@ export default function EventDetail() {
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
-                          <TableRow className="text-xs">
-                            <TableHead className="w-8"></TableHead>
-                            <TableHead className="w-20">Actions</TableHead>
-                            <TableHead>Start Date</TableHead>
-                            <TableHead>Start Time</TableHead>
-                            <TableHead>End Time</TableHead>
-                            <TableHead>Function Type</TableHead>
-                            <TableHead>Function Name</TableHead>
-                            <TableHead>Function #</TableHead>
-                            <TableHead>Location</TableHead>
-                            <TableHead>Attendance</TableHead>
-                            <TableHead>Room Rental</TableHead>
-                            <TableHead>Has Services</TableHead>
+                          <TableRow className="text-xs bg-muted/40">
+                            <TableHead className="w-8 px-3"></TableHead>
+                            <TableHead className="w-24">Actions</TableHead>
+                            <TableHead className="whitespace-nowrap">Start Date</TableHead>
+                            <TableHead className="whitespace-nowrap">Start Time</TableHead>
+                            <TableHead className="whitespace-nowrap">End Time</TableHead>
+                            <TableHead className="whitespace-nowrap">Function Type</TableHead>
+                            <TableHead className="whitespace-nowrap">Function Name</TableHead>
+                            <TableHead className="whitespace-nowrap">Function #</TableHead>
+                            <TableHead className="whitespace-nowrap">Location</TableHead>
+                            <TableHead className="whitespace-nowrap">Location Desc.</TableHead>
+                            <TableHead className="whitespace-nowrap">Attendance</TableHead>
+                            <TableHead className="whitespace-nowrap">Room Rental</TableHead>
+                            <TableHead className="whitespace-nowrap">Min. Charge</TableHead>
+                            <TableHead className="whitespace-nowrap">Has Services</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {functions.map((fn: any) => (
-                            <TableRow key={fn.id} className="text-sm">
-                              <TableCell>
-                                <input type="checkbox" className="rounded" />
+                            <TableRow key={fn.id} className="text-sm hover:bg-muted/30">
+                              <TableCell className="px-3">
+                                <input type="checkbox" className="rounded border-gray-300 w-3.5 h-3.5" />
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-0.5">
-                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Edit">
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Edit Function">
                                     <Link href={`/events/${eventId}/functions/${fn.id}/edit`}>
                                       <Edit className="w-3 h-3" />
                                     </Link>
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Service Menus (BEO)">
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Service Menus (BEO)">
                                     <Link href={`/events/${eventId}/functions/${fn.id}/services`}>
                                       <Utensils className="w-3 h-3" />
                                     </Link>
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 px-1 text-xs" asChild title="Financials">
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" asChild title="Financial Details">
                                     <Link href={`/events/${eventId}/functions/${fn.id}/financials`}>
                                       <DollarSign className="w-3 h-3" />
                                     </Link>
@@ -284,24 +313,32 @@ export default function EventDetail() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline font-medium">
+                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline font-medium whitespace-nowrap">
                                   {fn.functionDate || '—'}
                                 </Link>
                               </TableCell>
-                              <TableCell className="text-muted-foreground">{fn.startTime || '—'}</TableCell>
-                              <TableCell className="text-muted-foreground">{fn.endTime || '—'}</TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap">{fn.startTime || '—'}</TableCell>
+                              <TableCell className="text-muted-foreground whitespace-nowrap">{fn.endTime || '—'}</TableCell>
                               <TableCell>
-                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline">
+                                <Link href={`/events/${eventId}/functions/${fn.id}`} className="text-primary hover:underline whitespace-nowrap">
                                   {fn.functionType || '—'}
                                 </Link>
                               </TableCell>
-                              <TableCell>{fn.functionName || fn.functionType || '—'}</TableCell>
-                              <TableCell className="font-mono text-xs">{fn.functionNumber || `#${fn.id}`}</TableCell>
-                              <TableCell>{fn.location || '—'}</TableCell>
-                              <TableCell>{fn.estimatedAttendance || fn.expectedAttendance || '—'}</TableCell>
-                              <TableCell>{fn.roomRental ? `$${parseFloat(fn.roomRental).toLocaleString()}` : '—'}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fn.functionName || fn.functionType || '—'}</TableCell>
+                              <TableCell className="font-mono text-xs whitespace-nowrap">{fn.functionNumber || `#${fn.id}`}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fn.locationName || '—'}</TableCell>
+                              <TableCell className="text-muted-foreground max-w-[140px] truncate" title={fn.locationDescription ?? ''}>
+                                {fn.locationDescription || '—'}
+                              </TableCell>
+                              <TableCell className="text-right">{fn.estimatedAttendance ?? '—'}</TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                {fn.roomRental != null ? `$${Number(fn.roomRental).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                              </TableCell>
+                              <TableCell className="text-right whitespace-nowrap">
+                                {fn.minimumCharge != null ? `$${Number(fn.minimumCharge).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                              </TableCell>
                               <TableCell>
-                                <Badge variant="outline" className={`text-xs ${fn.hasServices ? 'text-green-700 border-green-300' : ''}`}>
+                                <Badge variant="outline" className={`text-xs ${fn.hasServices ? 'text-green-700 border-green-300 bg-green-50' : 'text-muted-foreground'}`}>
                                   {fn.hasServices ? 'Yes' : 'No'}
                                 </Badge>
                               </TableCell>
