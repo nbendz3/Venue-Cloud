@@ -8,6 +8,7 @@ export * from "./tasks";
 export * from "./notes";
 export * from "./appointments";
 export * from "./guestRoomBlocks";
+export * from "./guestRoomTypes";
 export * from "./reports";
 export * from "./menuTemplates";
 export * from "./functionMenus";
