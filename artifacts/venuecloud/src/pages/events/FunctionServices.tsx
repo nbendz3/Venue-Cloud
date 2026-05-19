@@ -14,8 +14,9 @@ import {
   useUpdateServiceItem,
   useDeleteServiceItem,
   useAddMenuTemplate,
+  useGetRevenueCenters,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,8 @@ const MENU_CATEGORIES = [
   "Setup and Service Menus",
   "Amenities",
 ];
+
+const SERVICE_ITEM_CATEGORIES = ["Food", "Beverage", "Equipment", "Labor", "Miscellaneous"];
 
 const SERVICE_TYPE_NAMES = [
   "Buffet",
@@ -958,44 +961,172 @@ function MenuBlock({
   allMenus: any[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [addServiceTypeOpen, setAddServiceTypeOpen] = useState(false);
-  const [serviceTypeName, setServiceTypeName] = useState(SERVICE_TYPE_NAMES[0]);
-  const queryClient = useQueryClient();
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+
+  const [itemForm, setItemForm] = useState({
+    itemName: "",
+    serviceTypeName: SERVICE_ITEM_CATEGORIES[0],
+    quantity: "1",
+    unitPrice: "",
+    revenueCenterId: "",
+  });
+
+  const [menuForm, setMenuForm] = useState({
+    functionMenuName: menu.functionMenuName as string,
+    pricingType: (menu.pricingType ?? "A La Carte Pricing") as string,
+  });
+
+  const [editForm, setEditForm] = useState({
+    itemName: "",
+    quantity: "",
+    unitPrice: "",
+    revenueCenterId: "",
+    notes: "",
+  });
+
+  const qc = useQueryClient();
   const { toast } = useToast();
+  const { data: revenueCenters } = useGetRevenueCenters({});
   const deleteMenu = useDeleteFunctionMenu();
   const createServiceType = useCreateServiceType();
+  const createItem = useCreateServiceItem();
+  const updateItem = useUpdateServiceItem();
+  const deleteItem = useDeleteServiceItem();
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+
+  const copyMenuMut = useMutation({
+    mutationFn: () =>
+      fetch(`/api/functions/${functionId}/menus/${menu.id}/copy`, { method: "POST" }).then((r) => r.json()),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "Menu copied" });
+    },
+  });
+
+  const updateMenuMut = useMutation({
+    mutationFn: (data: { functionMenuName: string; pricingType: string }) =>
+      fetch(`/api/functions/${functionId}/menus/${menu.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      invalidate();
+      setEditMenuOpen(false);
+      toast({ title: "Menu updated" });
+    },
+  });
 
   const removeMenu = () => {
     deleteMenu.mutate(
       { id: menu.id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          invalidate();
           toast({ title: "Menu removed" });
         },
       }
     );
   };
 
-  const addServiceType = () => {
-    createServiceType.mutate(
+  // Flatten all service type items into a single list
+  const allItems: any[] = (menu.serviceTypes ?? []).flatMap((st: any) =>
+    (st.items ?? []).map((item: any) => ({
+      ...item,
+      serviceTypeName: st.serviceTypeName,
+    }))
+  );
+
+  const menuTotal = allItems.reduce((sum, i) => {
+    const stored = parseFloat(i.itemTotal ?? "0") || 0;
+    if (stored > 0) return sum + stored;
+    const qty = parseFloat(i.quantity ?? "1") || 1;
+    const price = parseFloat(i.aLaCartePrice ?? "0") || 0;
+    return sum + price * qty;
+  }, 0);
+
+  const handleAddItem = async () => {
+    if (!itemForm.itemName) return;
+    setIsAdding(true);
+    try {
+      let serviceTypeId: number;
+      const existing = (menu.serviceTypes ?? []).find(
+        (st: any) => st.serviceTypeName.toLowerCase() === itemForm.serviceTypeName.toLowerCase()
+      );
+      if (existing) {
+        serviceTypeId = existing.id;
+      } else {
+        const newSt = await createServiceType.mutateAsync({
+          id: menu.id,
+          data: { serviceTypeName: itemForm.serviceTypeName },
+        });
+        serviceTypeId = (newSt as any).id;
+      }
+      await createItem.mutateAsync({
+        id: serviceTypeId,
+        data: {
+          itemName: itemForm.itemName,
+          quantity: itemForm.quantity ? parseFloat(itemForm.quantity) : undefined,
+          aLaCartePrice: itemForm.unitPrice ? parseFloat(itemForm.unitPrice) : undefined,
+          revenueCenterId: itemForm.revenueCenterId ? parseInt(itemForm.revenueCenterId) : undefined,
+        },
+      });
+      invalidate();
+      setAddItemOpen(false);
+      setItemForm({ itemName: "", serviceTypeName: SERVICE_ITEM_CATEGORIES[0], quantity: "1", unitPrice: "", revenueCenterId: "" });
+      toast({ title: "Item added" });
+    } catch {
+      toast({ title: "Failed to add item", variant: "destructive" });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const openEditItem = (item: any) => {
+    setEditingItem(item);
+    setEditForm({
+      itemName: item.itemName ?? "",
+      quantity: item.quantity ?? "1",
+      unitPrice: item.aLaCartePrice ?? "",
+      revenueCenterId: item.revenueCenterId ? String(item.revenueCenterId) : "",
+      notes: item.notes ?? "",
+    });
+  };
+
+  const handleSaveItem = () => {
+    if (!editingItem) return;
+    updateItem.mutate(
       {
-        id: menu.id,
-        data: { serviceTypeName },
+        id: editingItem.id,
+        data: {
+          itemName: editForm.itemName,
+          quantity: editForm.quantity ? parseFloat(editForm.quantity) : undefined,
+          aLaCartePrice: editForm.unitPrice ? parseFloat(editForm.unitPrice) : undefined,
+          revenueCenterId: editForm.revenueCenterId ? parseInt(editForm.revenueCenterId) : undefined,
+          notes: editForm.notes || undefined,
+        },
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
-          setAddServiceTypeOpen(false);
-          toast({ title: "Service type added" });
+          invalidate();
+          setEditingItem(null);
+          toast({ title: "Item updated" });
         },
       }
     );
   };
 
-  const menuTotal = (menu.serviceTypes ?? []).reduce((sum: number, st: any) => {
-    return sum + (st.items ?? []).reduce((s: number, i: any) => s + (parseFloat(i.itemTotal ?? "0") || 0), 0);
-  }, 0);
+  const handleDeleteItem = (itemId: number) => {
+    if (!confirm("Delete this item?")) return;
+    deleteItem.mutate(
+      { id: itemId },
+      { onSuccess: () => { invalidate(); toast({ title: "Item deleted" }); } }
+    );
+  };
 
   const MENU_BORDER_COLORS = [
     "border-l-blue-500", "border-l-green-500", "border-l-purple-500",
@@ -1005,81 +1136,310 @@ function MenuBlock({
 
   return (
     <div className={`border-l-4 ${borderColor} rounded-lg border border-border overflow-hidden`}>
-      <div className="bg-card px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setCollapsed((c) => !c)} className="text-muted-foreground hover:text-foreground">
+      {/* ── Menu Header ── */}
+      <div className="bg-card px-4 py-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => setCollapsed((c) => !c)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
           </button>
-          <div>
-            <div className="font-semibold">{menu.functionMenuName}</div>
+          <div className="min-w-0">
+            <div className="font-semibold truncate">{menu.functionMenuName}</div>
             <div className="text-xs text-muted-foreground">
-              {menu.pricingType} · {menu.serviceTypes?.length ?? 0} service type(s) · Total: {fmt(menuTotal)}
+              MNU-{String(menu.id).padStart(3, "0")}
+              {menu.pricingType ? ` · ${menu.pricingType}` : ""}
+              {" · Total: "}
+              <span className="font-medium text-foreground">{fmt(menuTotal)}</span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" asChild>
-            <Link href={`/events/${eventId}/functions/${functionId}/menus/${menu.id}/edit`}>
-              Edit Menu
-            </Link>
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setAddServiceTypeOpen(true)}>
-            <Plus className="w-3.5 h-3.5 mr-1" /> New Service Type
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button size="sm" onClick={() => setAddItemOpen(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setAddServiceTypeOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" /> Add Service Type
+              <DropdownMenuItem onClick={() => { setMenuForm({ functionMenuName: menu.functionMenuName, pricingType: menu.pricingType ?? "A La Carte Pricing" }); setEditMenuOpen(true); }}>
+                <Edit className="w-4 h-4 mr-2" /> Edit Menu
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast({ title: "Reorder mode — drag service types to reorder" })}>
-                Reorder Service Types
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast({ title: "Reorder items mode — drag items within each service type" })}>
-                Reorder Items
+              <DropdownMenuItem onClick={() => copyMenuMut.mutate()} disabled={copyMenuMut.isPending}>
+                Copy Menu
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={removeMenu} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" /> Delete Menu
+                <Trash2 className="w-4 h-4 mr-2" /> Remove Menu
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
+      {/* ── Items Table ── */}
       {!collapsed && (
-        <div className="p-4 space-y-4 bg-muted/10">
-          {menu.serviceTypes?.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-8 border-dashed border rounded-lg">
-              No service types yet. Click "New Service Type" to add one.
+        <div className="bg-muted/5">
+          {allItems.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm border-t">
+              <p>No items yet.</p>
+              <Button size="sm" variant="ghost" className="mt-2" onClick={() => setAddItemOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" /> Add first item
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border-t">
+              <Table>
+                <TableHeader>
+                  <TableRow className="text-xs bg-muted/40">
+                    <TableHead>Item</TableHead>
+                    <TableHead>Service Type</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Revenue Ctr</TableHead>
+                    <TableHead className="w-20"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allItems.map((item) => {
+                    const qty = parseFloat(item.quantity ?? "1") || 1;
+                    const price = parseFloat(item.aLaCartePrice ?? "0") || 0;
+                    const stored = parseFloat(item.itemTotal ?? "0") || 0;
+                    const total = stored > 0 ? stored : price * qty;
+                    return (
+                      <TableRow key={item.id} className="text-sm">
+                        <TableCell className="font-medium">
+                          {item.itemName}
+                          {item.notes && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[220px]">{item.notes}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap">
+                            {item.serviceTypeName}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{item.quantity ?? "1"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(item.aLaCartePrice)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">
+                          {price === 0 && stored === 0 ? "—" : fmt(total)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{item.revenueCenterName ?? "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                              onClick={() => openEditItem(item)}
+                              title="Edit"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                              onClick={() => handleDeleteItem(item.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
-          {menu.serviceTypes?.map((st: any) => (
-            <ServiceTypeBlock key={st.id} serviceType={st} functionId={functionId} menuId={menu.id} allMenus={allMenus} />
-          ))}
         </div>
       )}
 
-      {addServiceTypeOpen && (
-        <Dialog open onOpenChange={() => setAddServiceTypeOpen(false)}>
-          <DialogContent>
+      {/* ── Add Item Modal ── */}
+      {addItemOpen && (
+        <Dialog open onOpenChange={() => setAddItemOpen(false)}>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Add Service Type</DialogTitle>
+              <DialogTitle>Add Item — {menu.functionMenuName}</DialogTitle>
             </DialogHeader>
-            <div className="py-2">
-              <Label>Service Type</Label>
-              <Select value={serviceTypeName} onValueChange={setServiceTypeName}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SERVICE_TYPE_NAMES.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-4 py-2">
+              <div>
+                <Label className="text-xs mb-1.5 block">Item Name *</Label>
+                <Input
+                  placeholder="e.g. Breakfast Buffet"
+                  value={itemForm.itemName}
+                  onChange={(e) => setItemForm((f) => ({ ...f, itemName: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Service Type</Label>
+                <Select
+                  value={itemForm.serviceTypeName}
+                  onValueChange={(v) => setItemForm((f) => ({ ...f, serviceTypeName: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_ITEM_CATEGORIES.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1.5 block">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={itemForm.quantity}
+                    onChange={(e) => setItemForm((f) => ({ ...f, quantity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1.5 block">Unit Price</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={itemForm.unitPrice}
+                    onChange={(e) => setItemForm((f) => ({ ...f, unitPrice: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Revenue Center</Label>
+                <Select
+                  value={itemForm.revenueCenterId || "_none_"}
+                  onValueChange={(v) => setItemForm((f) => ({ ...f, revenueCenterId: v === "_none_" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">— None —</SelectItem>
+                    {((revenueCenters as any[]) ?? []).map((rc) => (
+                      <SelectItem key={rc.id} value={String(rc.id)}>{rc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddServiceTypeOpen(false)}>Cancel</Button>
-              <Button onClick={addServiceType} disabled={createServiceType.isPending}>Add</Button>
+              <Button variant="outline" onClick={() => setAddItemOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddItem} disabled={!itemForm.itemName || isAdding}>
+                {isAdding ? "Adding…" : "Add Item"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Edit Item Modal ── */}
+      {editingItem && (
+        <Dialog open onOpenChange={() => setEditingItem(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Item</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div>
+                <Label className="text-xs mb-1.5 block">Item Name *</Label>
+                <Input
+                  value={editForm.itemName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, itemName: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs mb-1.5 block">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={editForm.quantity}
+                    onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1.5 block">Unit Price</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editForm.unitPrice}
+                    onChange={(e) => setEditForm((f) => ({ ...f, unitPrice: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Revenue Center</Label>
+                <Select
+                  value={editForm.revenueCenterId || "_none_"}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, revenueCenterId: v === "_none_" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">— None —</SelectItem>
+                    {((revenueCenters as any[]) ?? []).map((rc) => (
+                      <SelectItem key={rc.id} value={String(rc.id)}>{rc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Notes</Label>
+                <Textarea
+                  rows={2}
+                  className="resize-none text-sm"
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+              <Button onClick={handleSaveItem} disabled={!editForm.itemName || updateItem.isPending}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Edit Menu Modal ── */}
+      {editMenuOpen && (
+        <Dialog open onOpenChange={() => setEditMenuOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Menu</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div>
+                <Label className="text-xs mb-1.5 block">Menu Name *</Label>
+                <Input
+                  value={menuForm.functionMenuName}
+                  onChange={(e) => setMenuForm((f) => ({ ...f, functionMenuName: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Pricing Type</Label>
+                <Select
+                  value={menuForm.pricingType || PRICING_TYPES[0]}
+                  onValueChange={(v) => setMenuForm((f) => ({ ...f, pricingType: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PRICING_TYPES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditMenuOpen(false)}>Cancel</Button>
+              <Button
+                onClick={() => updateMenuMut.mutate(menuForm)}
+                disabled={!menuForm.functionMenuName || updateMenuMut.isPending}
+              >
+                Save
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

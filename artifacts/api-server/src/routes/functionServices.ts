@@ -123,4 +123,103 @@ router.post("/:id/add-menu-template", async (req, res) => {
   }
 });
 
+// PUT /functions/:id/menus/:menuId — update menu name / pricing type
+router.put("/:id/menus/:menuId", async (req, res) => {
+  try {
+    const menuId = parseInt(req.params.menuId);
+    const { functionMenuName, pricingType, description, menuNotes } = req.body;
+    const [updated] = await db
+      .update(functionMenusTable)
+      .set({
+        ...(functionMenuName !== undefined && { functionMenuName }),
+        ...(pricingType !== undefined && { pricingType }),
+        ...(description !== undefined && { description }),
+        ...(menuNotes !== undefined && { menuNotes }),
+        updatedAt: new Date(),
+      })
+      .where(eq(functionMenusTable.id, menuId))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Menu not found" });
+    res.json(updated);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /functions/:id/menus/:menuId/copy — duplicate a menu with all its service types and items
+router.post("/:id/menus/:menuId/copy", async (req, res) => {
+  try {
+    const functionId = parseInt(req.params.id);
+    const menuId = parseInt(req.params.menuId);
+
+    const [srcMenu] = await db
+      .select()
+      .from(functionMenusTable)
+      .where(eq(functionMenusTable.id, menuId));
+    if (!srcMenu) return res.status(404).json({ error: "Menu not found" });
+
+    const [newMenu] = await db
+      .insert(functionMenusTable)
+      .values({
+        functionId,
+        functionMenuName: `${srcMenu.functionMenuName} (Copy)`,
+        pricingType: srcMenu.pricingType,
+        description: srcMenu.description,
+        menuNotes: srcMenu.menuNotes,
+      })
+      .returning();
+
+    const srcServiceTypes = await db
+      .select()
+      .from(serviceTypesTable)
+      .where(eq(serviceTypesTable.functionMenuId, menuId))
+      .orderBy(serviceTypesTable.displayOrder);
+
+    const newServiceTypes = [];
+    for (const st of srcServiceTypes) {
+      const [newSt] = await db
+        .insert(serviceTypesTable)
+        .values({
+          functionMenuId: newMenu.id,
+          serviceTypeName: st.serviceTypeName,
+          displayOrder: st.displayOrder ?? 0,
+        })
+        .returning();
+
+      const srcItems = await db
+        .select()
+        .from(serviceItemsTable)
+        .where(eq(serviceItemsTable.serviceTypeId, st.id));
+
+      const newItems = [];
+      for (const item of srcItems) {
+        const [newItem] = await db
+          .insert(serviceItemsTable)
+          .values({
+            serviceTypeId: newSt.id,
+            itemName: item.itemName,
+            description: item.description,
+            notes: item.notes,
+            quantity: item.quantity,
+            aLaCartePrice: item.aLaCartePrice,
+            addOnPrice: item.addOnPrice,
+            cost: item.cost,
+            category: item.category,
+            appliedRates: item.appliedRates,
+            revenueCenterId: item.revenueCenterId,
+          })
+          .returning();
+        newItems.push(newItem);
+      }
+      newServiceTypes.push({ ...newSt, items: newItems });
+    }
+
+    res.status(201).json({ ...newMenu, serviceTypes: newServiceTypes });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
