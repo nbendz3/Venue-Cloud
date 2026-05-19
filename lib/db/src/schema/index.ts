@@ -26,3 +26,4 @@ export * from "./settings";
 export * from "./masterEvents";
 export * from "./communicationHistory";
 export * from "./eventContacts";
+export * from "./eventPersonnel";

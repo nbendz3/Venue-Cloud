@@ -27,6 +27,7 @@ import settingsRouter from "./settings";
 import masterEventsRouter from "./masterEvents";
 import communicationHistoryRouter from "./communicationHistory";
 import eventContactsRouter from "./eventContacts";
+import eventPersonnelRouter from "./eventPersonnel";
 
 const router: IRouter = Router();
 
@@ -34,6 +35,7 @@ router.use(healthRouter);
 router.use("/events", eventsRouter);
 router.use("/events", financialsRouter);
 router.use("/events/:id/contacts", eventContactsRouter);
+router.use("/events/:id/personnel", eventPersonnelRouter);
 router.use("/functions", functionsRouter);
 router.use("/functions", functionServicesRouter);
 router.use("/functions", functionFinancialsRouter);

@@ -13,7 +13,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye, Trash2, UserPlus, BedDouble } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye, Trash2, UserPlus, BedDouble, Users, CheckCircle2, Circle, CalendarDays, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +127,43 @@ export default function EventDetail() {
   const [editingRoomBlockId, setEditingRoomBlockId] = useState<number | null>(null);
   const [roomBlockForm, setRoomBlockForm] = useState({
     blockName: "", startDate: "", departureDate: "", blocked: "", pickup: "", avgRate: "",
+  });
+
+  const { data: personnel, isLoading: personnelLoading } = useQuery<{
+    id: number; eventId: number; name: string; role: string | null;
+    department: string | null; phone: string | null; createdAt: string;
+  }[]>({
+    queryKey: ["/api/events", eventId, "personnel"],
+    queryFn: () => fetch(`/api/events/${eventId}/personnel`).then((r) => r.json()),
+    enabled: !!eventId,
+  });
+
+  const [personnelDialogOpen, setPersonnelDialogOpen] = useState(false);
+  const [personnelForm, setPersonnelForm] = useState({ name: "", role: "", department: "", phone: "" });
+
+  const addPersonnel = useMutation({
+    mutationFn: (data: object) =>
+      fetch(`/api/events/${eventId}/personnel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "personnel"] });
+      setPersonnelDialogOpen(false);
+      setPersonnelForm({ name: "", role: "", department: "", phone: "" });
+      toast({ title: "Personnel added" });
+    },
+    onError: () => toast({ title: "Failed to add personnel", variant: "destructive" }),
+  });
+  const removePersonnel = useMutation({
+    mutationFn: (personnelId: number) =>
+      fetch(`/api/events/${eventId}/personnel/${personnelId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "personnel"] });
+      toast({ title: "Personnel removed" });
+    },
+    onError: () => toast({ title: "Failed to remove personnel", variant: "destructive" }),
   });
 
   const rbQueryKey = ["/api/guest-room-blocks"];
@@ -674,6 +711,204 @@ export default function EventDetail() {
                         </DialogContent>
                       </Dialog>
                     )}
+                  </div>
+                );
+              }
+
+              if (section === "Personnel") {
+                const ROLE_OPTIONS = [
+                  "Catering Manager", "Event Coordinator", "Sales Manager", "Chef",
+                  "Banquet Captain", "Room Setup", "Audio Visual Tech", "Security",
+                  "Parking Attendant", "Coat Check",
+                ];
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Personnel</h2>
+                      <Button size="sm" onClick={() => setPersonnelDialogOpen(true)}>
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Add Personnel
+                      </Button>
+                    </div>
+                    <Card>
+                      {personnelLoading ? (
+                        <CardContent className="p-6"><Skeleton className="h-16 w-full" /></CardContent>
+                      ) : !personnel || personnel.length === 0 ? (
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">
+                          No personnel assigned.
+                        </CardContent>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead>Name</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Department</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead className="w-10"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {personnel.map((p) => (
+                                <TableRow key={p.id} className="text-sm">
+                                  <TableCell className="font-medium">{p.name}</TableCell>
+                                  <TableCell>
+                                    {p.role
+                                      ? <Badge variant="outline" className="text-xs">{p.role}</Badge>
+                                      : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{p.department ?? '—'}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.phone ?? '—'}</TableCell>
+                                  <TableCell>
+                                    <button
+                                      className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                      onClick={() => removePersonnel.mutate(p.id)}
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+
+                    {personnelDialogOpen && (
+                      <Dialog open onOpenChange={(open) => { if (!open) { setPersonnelDialogOpen(false); setPersonnelForm({ name: "", role: "", department: "", phone: "" }); } }}>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader><DialogTitle>Add Personnel</DialogTitle></DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Name</Label>
+                              <Input
+                                placeholder="Full name"
+                                value={personnelForm.name}
+                                onChange={(e) => setPersonnelForm((f) => ({ ...f, name: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Role</Label>
+                              <Select value={personnelForm.role || "_none_"} onValueChange={(v) => setPersonnelForm((f) => ({ ...f, role: v === "_none_" ? "" : v }))}>
+                                <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none_">— No role —</SelectItem>
+                                  {ROLE_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Department</Label>
+                              <Input
+                                placeholder="e.g. Food & Beverage"
+                                value={personnelForm.department}
+                                onChange={(e) => setPersonnelForm((f) => ({ ...f, department: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Phone</Label>
+                              <Input
+                                placeholder="555-0000"
+                                value={personnelForm.phone}
+                                onChange={(e) => setPersonnelForm((f) => ({ ...f, phone: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => { setPersonnelDialogOpen(false); setPersonnelForm({ name: "", role: "", department: "", phone: "" }); }}>Cancel</Button>
+                            <Button
+                              onClick={() => addPersonnel.mutate({ name: personnelForm.name, role: personnelForm.role || null, department: personnelForm.department || null, phone: personnelForm.phone || null })}
+                              disabled={!personnelForm.name || addPersonnel.isPending}
+                            >
+                              Add
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                );
+              }
+
+              if (section === "Event Timeline") {
+                const fmtTimelineDate = (d: string) =>
+                  new Date(d + (d.includes("T") ? "" : "T00:00:00")).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+                type TLItem = { date: string; label: string; sublabel?: string; kind: "created" | "lifecycle" | "event-start" | "event-end" };
+                const today = new Date().toISOString().split("T")[0];
+
+                const items: TLItem[] = [];
+                if (event.createdAt) {
+                  items.push({ date: new Date(event.createdAt).toISOString().split("T")[0], label: "Lead Created", kind: "created" });
+                }
+                if (lifecycle) {
+                  lifecycle.stages
+                    .filter((s) => !!s.dateProcessed)
+                    .forEach((s) => items.push({ date: s.dateProcessed!, label: s.action, sublabel: s.eventStatus, kind: "lifecycle" }));
+                }
+                if (event.startDate) items.push({ date: event.startDate, label: "Event Start", sublabel: event.eventName, kind: "event-start" });
+                if (event.endDate && event.endDate !== event.startDate) items.push({ date: event.endDate, label: "Event End", kind: "event-end" });
+
+                items.sort((a, b) => a.date.localeCompare(b.date));
+
+                const isPast = (d: string) => d <= today;
+
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Event Timeline</h2>
+                    <Card>
+                      <CardContent className="p-6">
+                        {items.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">No timeline data available.</p>
+                        ) : (
+                          <div className="relative">
+                            {/* Vertical line */}
+                            <div className="absolute left-[19px] top-3 bottom-3 w-px bg-border" />
+                            <div className="space-y-0">
+                              {items.map((item, i) => {
+                                const done = isPast(item.date);
+                                const isEventDay = item.kind === "event-start" || item.kind === "event-end";
+                                return (
+                                  <div key={i} className="flex gap-4 relative pb-6 last:pb-0">
+                                    {/* Icon */}
+                                    <div className={`relative z-10 flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                                      isEventDay
+                                        ? done ? "border-blue-500 bg-blue-50 text-blue-600" : "border-blue-300 bg-white text-blue-400"
+                                        : done ? "border-green-500 bg-green-50 text-green-600" : "border-muted bg-white text-muted-foreground"
+                                    }`}>
+                                      {item.kind === "created" && <Clock className="w-4 h-4" />}
+                                      {item.kind === "lifecycle" && (done ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />)}
+                                      {(item.kind === "event-start" || item.kind === "event-end") && <CalendarDays className="w-4 h-4" />}
+                                    </div>
+                                    {/* Content */}
+                                    <div className="flex-1 pt-1.5">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`text-sm font-medium ${done ? "text-foreground" : "text-muted-foreground"}`}>
+                                          {item.label}
+                                        </span>
+                                        {item.sublabel && (
+                                          <Badge variant="outline" className={`text-xs ${
+                                            item.kind === "lifecycle" && done ? getStatusColor(item.sublabel) : ""
+                                          }`}>
+                                            {item.sublabel}
+                                          </Badge>
+                                        )}
+                                        {isEventDay && <Badge className="text-xs bg-blue-600 hover:bg-blue-700">Event Day</Badge>}
+                                      </div>
+                                      <div className={`text-xs mt-0.5 ${done ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
+                                        {fmtTimelineDate(item.date)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
                 );
               }
