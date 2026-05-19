@@ -308,6 +308,70 @@ paths:
                 items:
                   $ref: "#/components/schemas/Task"
 
+  /events/{id}/contacts:
+    get:
+      operationId: listEventContacts
+      tags: [events]
+      summary: List contacts linked to an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventContact"
+    post:
+      operationId: addEventContact
+      tags: [events]
+      summary: Link a contact to an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventContactInput"
+      responses:
+        "201":
+          description: Contact linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventContact"
+
+  /events/{id}/contacts/{contactId}:
+    delete:
+      operationId: removeEventContact
+      tags: [events]
+      summary: Remove a contact link from an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: contactId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
   # Functions
   /functions/{id}:
     get:
@@ -3116,6 +3180,43 @@ components:
           type: string
         salesperson:
           type: string
+
+    EventContact:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        contactId:
+          type: integer
+        contactRole:
+          type: ["string", "null"]
+        contactName:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - eventId
+        - contactId
+        - createdAt
+
+    EventContactInput:
+      type: object
+      properties:
+        contactId:
+          type: integer
+        contactRole:
+          type: ["string", "null"]
+      required:
+        - contactId
 
     GuestRoomBlock:
       type: object

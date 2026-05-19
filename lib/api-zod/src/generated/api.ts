@@ -438,6 +438,49 @@ export const ListEventTasksResponse = zod.array(ListEventTasksResponseItem)
 
 
 /**
+ * @summary List contacts linked to an event
+ */
+export const ListEventContactsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListEventContactsResponseItem = zod.object({
+  "id": zod.number(),
+  "eventId": zod.number(),
+  "contactId": zod.number(),
+  "contactRole": zod.string().nullish(),
+  "contactName": zod.string().nullish(),
+  "accountName": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListEventContactsResponse = zod.array(ListEventContactsResponseItem)
+
+
+/**
+ * @summary Link a contact to an event
+ */
+export const AddEventContactParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddEventContactBody = zod.object({
+  "contactId": zod.number(),
+  "contactRole": zod.string().nullish()
+})
+
+
+/**
+ * @summary Remove a contact link from an event
+ */
+export const RemoveEventContactParams = zod.object({
+  "id": zod.coerce.number(),
+  "contactId": zod.coerce.number()
+})
+
+
+/**
  * @summary Get function by ID
  */
 export const GetFunctionParams = zod.object({

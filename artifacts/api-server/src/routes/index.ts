@@ -26,12 +26,14 @@ import functionFinancialsRouter from "./functionFinancials";
 import settingsRouter from "./settings";
 import masterEventsRouter from "./masterEvents";
 import communicationHistoryRouter from "./communicationHistory";
+import eventContactsRouter from "./eventContacts";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/events", eventsRouter);
 router.use("/events", financialsRouter);
+router.use("/events/:id/contacts", eventContactsRouter);
 router.use("/functions", functionsRouter);
 router.use("/functions", functionServicesRouter);
 router.use("/functions", functionFinancialsRouter);

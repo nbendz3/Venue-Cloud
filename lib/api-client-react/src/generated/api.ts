@@ -44,6 +44,8 @@ import type {
   DashboardSummary,
   DepositScheduled,
   Event,
+  EventContact,
+  EventContactInput,
   EventFinancials,
   EventFunction,
   EventFunctionInput,
@@ -1176,6 +1178,227 @@ export function useListEventTasks<TData = Awaited<ReturnType<typeof listEventTas
 
 
 
+
+export const getListEventContactsUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/contacts`
+}
+
+/**
+ * @summary List contacts linked to an event
+ */
+export const listEventContacts = async (id: number, options?: RequestInit): Promise<EventContact[]> => {
+
+  return customFetch<EventContact[]>(getListEventContactsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListEventContactsQueryKey = (id: number,) => {
+    return [
+    `/api/events/${id}/contacts`
+    ] as const;
+    }
+
+
+export const getListEventContactsQueryOptions = <TData = Awaited<ReturnType<typeof listEventContacts>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventContacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListEventContactsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventContacts>>> = ({ signal }) => listEventContacts(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listEventContacts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListEventContactsQueryResult = NonNullable<Awaited<ReturnType<typeof listEventContacts>>>
+export type ListEventContactsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List contacts linked to an event
+ */
+
+export function useListEventContacts<TData = Awaited<ReturnType<typeof listEventContacts>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listEventContacts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListEventContactsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getAddEventContactUrl = (id: number,) => {
+
+
+
+
+  return `/api/events/${id}/contacts`
+}
+
+/**
+ * @summary Link a contact to an event
+ */
+export const addEventContact = async (id: number,
+    eventContactInput: EventContactInput, options?: RequestInit): Promise<EventContact> => {
+
+  return customFetch<EventContact>(getAddEventContactUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      eventContactInput,)
+  }
+);}
+
+
+
+
+export const getAddEventContactMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addEventContact>>, TError,{id: number;data: BodyType<EventContactInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addEventContact>>, TError,{id: number;data: BodyType<EventContactInput>}, TContext> => {
+
+const mutationKey = ['addEventContact'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addEventContact>>, {id: number;data: BodyType<EventContactInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addEventContact(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddEventContactMutationResult = NonNullable<Awaited<ReturnType<typeof addEventContact>>>
+    export type AddEventContactMutationBody = BodyType<EventContactInput>
+    export type AddEventContactMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Link a contact to an event
+ */
+export const useAddEventContact = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addEventContact>>, TError,{id: number;data: BodyType<EventContactInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addEventContact>>,
+        TError,
+        {id: number;data: BodyType<EventContactInput>},
+        TContext
+      > => {
+      return useMutation(getAddEventContactMutationOptions(options));
+    }
+
+export const getRemoveEventContactUrl = (id: number,
+    contactId: number,) => {
+
+
+
+
+  return `/api/events/${id}/contacts/${contactId}`
+}
+
+/**
+ * @summary Remove a contact link from an event
+ */
+export const removeEventContact = async (id: number,
+    contactId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveEventContactUrl(id,contactId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveEventContactMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEventContact>>, TError,{id: number;contactId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeEventContact>>, TError,{id: number;contactId: number}, TContext> => {
+
+const mutationKey = ['removeEventContact'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeEventContact>>, {id: number;contactId: number}> = (props) => {
+          const {id,contactId} = props ?? {};
+
+          return  removeEventContact(id,contactId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveEventContactMutationResult = NonNullable<Awaited<ReturnType<typeof removeEventContact>>>
+
+    export type RemoveEventContactMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a contact link from an event
+ */
+export const useRemoveEventContact = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeEventContact>>, TError,{id: number;contactId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeEventContact>>,
+        TError,
+        {id: number;contactId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveEventContactMutationOptions(options));
+    }
 
 export const getGetFunctionUrl = (id: number,) => {
 

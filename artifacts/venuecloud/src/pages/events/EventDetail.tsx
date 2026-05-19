@@ -1,11 +1,36 @@
-import { useGetEvent, useListEventFunctions } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  useGetEvent,
+  useListEventFunctions,
+  useListGuestRoomBlocks,
+  useListEventContacts,
+  useAddEventContact,
+  useRemoveEventContact,
+  useListContacts,
+} from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye } from "lucide-react";
+import { ArrowLeft, Edit, DollarSign, Utensils, TrendingUp, Plus, MoreHorizontal, Copy, XCircle, Eye, Trash2, UserPlus, BedDouble } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getStatusColor } from "./EventsList";
 import { EventMoreActions } from "@/components/EventMoreActions";
 import { CommunicationHistoryPanel } from "@/components/CommunicationHistoryPanel";
@@ -24,6 +49,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -63,6 +89,9 @@ const fmt$ = (n: number) =>
 export default function EventDetail() {
   const params = useParams();
   const eventId = Number(params.id);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
   const { data: event, isLoading } = useGetEvent(eventId, { query: { enabled: !!eventId } as any });
   const { data: functions } = useListEventFunctions(eventId, { query: { enabled: !!eventId } as any });
   const { data: lifecycle } = useQuery<LifecycleData>({
@@ -70,6 +99,29 @@ export default function EventDetail() {
     queryFn: () => fetch(`/api/events/${eventId}/lifecycle`).then(r => r.json()),
     enabled: !!eventId,
   });
+
+  const { data: roomBlocks } = useListGuestRoomBlocks(
+    { eventId },
+    { query: { enabled: !!eventId } as any }
+  );
+
+  const { data: eventContacts, isLoading: contactsLoading } = useListEventContacts(
+    eventId,
+    { query: { enabled: !!eventId } as any }
+  );
+
+  const { data: allContacts } = useListContacts(
+    {},
+    { query: { enabled: true } as any }
+  );
+
+  const addEventContact = useAddEventContact();
+  const removeEventContact = useRemoveEventContact();
+
+  const [addContactOpen, setAddContactOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [selectedContactId, setSelectedContactId] = useState<string>("_none_");
+  const [contactRole, setContactRole] = useState("");
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-8" /><Skeleton className="h-96 w-full" /></div>;
@@ -391,6 +443,277 @@ export default function EventDetail() {
             {/* Remaining sections — some with real content, rest as placeholders */}
             {SECTIONS.slice(3).map((section, idx) => {
               const sectionIdx = idx + 3;
+
+              if (section === "Guest Room Blocks") {
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Guest Room Blocks</h2>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/guest-rooms`}>
+                            <BedDouble className="w-3.5 h-3.5 mr-1" /> View Guest Rooms
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                    <Card>
+                      {(!roomBlocks || roomBlocks.length === 0) ? (
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">
+                          No room blocks for this event.
+                        </CardContent>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead>Block Name</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-center"># Blocked</TableHead>
+                                <TableHead>Check-in</TableHead>
+                                <TableHead>Check-out</TableHead>
+                                <TableHead className="text-right">Avg Rate</TableHead>
+                                <TableHead>Cut-off Date</TableHead>
+                                <TableHead className="text-center"># Pickup</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {roomBlocks.map((block) => (
+                                <TableRow key={block.id} className="text-sm">
+                                  <TableCell className="font-medium">{block.blockName}</TableCell>
+                                  <TableCell>
+                                    {block.status ? (
+                                      <Badge variant="outline" className="text-xs">{block.status}</Badge>
+                                    ) : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="text-center">{block.blocked ?? '—'}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{block.startDate ?? '—'}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{block.departureDate ?? '—'}</TableCell>
+                                  <TableCell className="text-right">
+                                    {block.avgRate != null ? fmt$(block.avgRate) : '—'}
+                                  </TableCell>
+                                  <TableCell className="whitespace-nowrap">{block.cutoffDate ?? '—'}</TableCell>
+                                  <TableCell className="text-center">{block.pickup ?? '—'}</TableCell>
+                                  <TableCell className="text-right font-medium">
+                                    {block.total != null ? fmt$(block.total) : '—'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+                  </div>
+                );
+              }
+
+              if (section === "Contacts") {
+                const filtered = (allContacts ?? []).filter((c) => {
+                  const q = contactSearch.toLowerCase();
+                  if (!q) return true;
+                  return (
+                    `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) ||
+                    (c.email ?? "").toLowerCase().includes(q)
+                  );
+                });
+
+                const handleAddContact = () => {
+                  if (selectedContactId === "_none_") return;
+                  addEventContact.mutate(
+                    {
+                      id: eventId,
+                      data: {
+                        contactId: Number(selectedContactId),
+                        contactRole: contactRole || null,
+                      },
+                    },
+                    {
+                      onSuccess: () => {
+                        queryClient.invalidateQueries({ queryKey: ["/api/events/{id}/contacts"] });
+                        setAddContactOpen(false);
+                        setSelectedContactId("_none_");
+                        setContactRole("");
+                        setContactSearch("");
+                        toast({ title: "Contact linked to event" });
+                      },
+                      onError: (err: any) => {
+                        toast({ title: err?.message ?? "Failed to add contact", variant: "destructive" });
+                      },
+                    }
+                  );
+                };
+
+                const handleRemove = (contactId: number) => {
+                  removeEventContact.mutate(
+                    { id: eventId, contactId },
+                    {
+                      onSuccess: () => {
+                        queryClient.invalidateQueries({ queryKey: ["/api/events/{id}/contacts"] });
+                        toast({ title: "Contact removed" });
+                      },
+                    }
+                  );
+                };
+
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                      <h2 className="text-lg font-semibold">Contacts</h2>
+                      <Button size="sm" onClick={() => setAddContactOpen(true)}>
+                        <UserPlus className="w-3.5 h-3.5 mr-1" /> Add Contact
+                      </Button>
+                    </div>
+                    <Card>
+                      {contactsLoading ? (
+                        <CardContent className="p-6"><Skeleton className="h-16 w-full" /></CardContent>
+                      ) : !eventContacts || eventContacts.length === 0 ? (
+                        <CardContent className="p-8 text-center text-muted-foreground text-sm">
+                          No contacts linked to this event yet.
+                        </CardContent>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs bg-muted/40">
+                                <TableHead>Contact Role</TableHead>
+                                <TableHead>Contact Name</TableHead>
+                                <TableHead>Account</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead className="w-10"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {eventContacts.map((ec) => (
+                                <TableRow key={ec.id} className="text-sm">
+                                  <TableCell>
+                                    {ec.contactRole
+                                      ? <Badge variant="outline" className="text-xs">{ec.contactRole}</Badge>
+                                      : <span className="text-muted-foreground">—</span>}
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    <Link
+                                      href={`/contacts/${ec.contactId}`}
+                                      className="text-primary hover:underline"
+                                    >
+                                      {ec.contactName ?? `Contact #${ec.contactId}`}
+                                    </Link>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {ec.accountName ?? '—'}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">
+                                    {ec.phone ?? '—'}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    {ec.email ?? '—'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                      onClick={() => handleRemove(ec.contactId)}
+                                      title="Remove contact"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </Card>
+
+                    {addContactOpen && (
+                      <Dialog open onOpenChange={() => { setAddContactOpen(false); setContactSearch(""); setSelectedContactId("_none_"); setContactRole(""); }}>
+                        <DialogContent className="max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>Add Contact to Event</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 py-2">
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Search Contact</Label>
+                              <Input
+                                placeholder="Name or email..."
+                                value={contactSearch}
+                                onChange={(e) => { setContactSearch(e.target.value); setSelectedContactId("_none_"); }}
+                              />
+                            </div>
+                            {contactSearch && (
+                              <div className="border rounded-md max-h-48 overflow-y-auto">
+                                {filtered.length === 0 ? (
+                                  <div className="p-4 text-sm text-center text-muted-foreground">No contacts found</div>
+                                ) : (
+                                  filtered.slice(0, 20).map((c) => (
+                                    <button
+                                      key={c.id}
+                                      className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex flex-col ${selectedContactId === String(c.id) ? "bg-primary/10" : ""}`}
+                                      onClick={() => setSelectedContactId(String(c.id))}
+                                    >
+                                      <span className="font-medium">{c.firstName} {c.lastName}</span>
+                                      {c.email && <span className="text-xs text-muted-foreground">{c.email}</span>}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                            {!contactSearch && (
+                              <div>
+                                <Label className="text-xs mb-1.5 block">Or select contact</Label>
+                                <Select value={selectedContactId} onValueChange={setSelectedContactId}>
+                                  <SelectTrigger><SelectValue placeholder="Choose a contact..." /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="_none_">— Select contact —</SelectItem>
+                                    {(allContacts ?? []).map((c) => (
+                                      <SelectItem key={c.id} value={String(c.id)}>
+                                        {c.firstName} {c.lastName}{c.email ? ` — ${c.email}` : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                            <div>
+                              <Label className="text-xs mb-1.5 block">Contact Role</Label>
+                              <Select value={contactRole || "_none_"} onValueChange={(v) => setContactRole(v === "_none_" ? "" : v)}>
+                                <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none_">— No role —</SelectItem>
+                                  <SelectItem value="Primary Contact">Primary Contact</SelectItem>
+                                  <SelectItem value="Billing Contact">Billing Contact</SelectItem>
+                                  <SelectItem value="On-site Contact">On-site Contact</SelectItem>
+                                  <SelectItem value="Ceremony Contact">Ceremony Contact</SelectItem>
+                                  <SelectItem value="Reception Contact">Reception Contact</SelectItem>
+                                  <SelectItem value="Catering Contact">Catering Contact</SelectItem>
+                                  <SelectItem value="AV Contact">AV Contact</SelectItem>
+                                  <SelectItem value="Coordinator">Coordinator</SelectItem>
+                                  <SelectItem value="Other">Other</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => { setAddContactOpen(false); setContactSearch(""); setSelectedContactId("_none_"); setContactRole(""); }}>
+                              Cancel
+                            </Button>
+                            <Button
+                              onClick={handleAddContact}
+                              disabled={selectedContactId === "_none_" || addEventContact.isPending}
+                            >
+                              Add Contact
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                );
+              }
 
               if (section === "Communication History") {
                 return (

@@ -610,6 +610,29 @@ export interface AppointmentUpdate {
   salesperson?: string;
 }
 
+export interface EventContact {
+  id: number;
+  eventId: number;
+  contactId: number;
+  /** @nullable */
+  contactRole?: string | null;
+  /** @nullable */
+  contactName?: string | null;
+  /** @nullable */
+  accountName?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  createdAt: string;
+}
+
+export interface EventContactInput {
+  contactId: number;
+  /** @nullable */
+  contactRole?: string | null;
+}
+
 export interface GuestRoomBlock {
   id: number;
   eventId: number;
