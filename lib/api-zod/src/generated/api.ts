@@ -1979,6 +1979,7 @@ export const GetCalendarEventsQueryParams = zod.object({
 export const GetCalendarEventsResponseItem = zod.object({
   "id": zod.number(),
   "eventName": zod.string(),
+  "accountName": zod.string().nullish(),
   "startDate": zod.string().nullish(),
   "endDate": zod.string().nullish(),
   "eventStatus": zod.string(),

@@ -3438,6 +3438,8 @@ components:
           type: integer
         eventName:
           type: string
+        accountName:
+          type: ["string", "null"]
         startDate:
           type: ["string", "null"]
         endDate:

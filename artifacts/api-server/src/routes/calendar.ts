@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eventsTable, functionsTable, locationsTable } from "@workspace/db";
+import { eventsTable, functionsTable, locationsTable, accountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -43,9 +43,17 @@ router.get("/events", async (req, res) => {
             };
           })
         );
+        let accountName: string | null = null;
+        if (evt.accountId) {
+          const account = await db.query.accountsTable.findFirst({
+            where: eq(accountsTable.id, evt.accountId),
+          });
+          accountName = account?.accountName ?? null;
+        }
         return {
           id: evt.id,
           eventName: evt.eventName,
+          accountName,
           startDate: evt.startDate,
           endDate: evt.endDate,
           eventStatus: evt.eventStatus,

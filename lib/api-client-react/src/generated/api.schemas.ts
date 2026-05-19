@@ -773,6 +773,8 @@ export interface CalendarEvent {
   id: number;
   eventName: string;
   /** @nullable */
+  accountName?: string | null;
+  /** @nullable */
   startDate?: string | null;
   /** @nullable */
   endDate?: string | null;
