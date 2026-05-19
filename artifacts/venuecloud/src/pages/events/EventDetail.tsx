@@ -502,6 +502,9 @@ export default function EventDetail() {
               }
 
               if (section === "Contacts") {
+                const primaryContact = (eventContacts ?? []).find(
+                  (ec) => ec.contactRole === "Primary Contact"
+                );
                 const filtered = (allContacts ?? []).filter((c) => {
                   const q = contactSearch.toLowerCase();
                   if (!q) return true;
@@ -552,7 +555,15 @@ export default function EventDetail() {
                 return (
                   <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
                     <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                      <h2 className="text-lg font-semibold">Contacts</h2>
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-semibold">Contacts</h2>
+                        {primaryContact && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                            Primary: <span className="font-medium text-foreground">{primaryContact.contactName}</span>
+                          </span>
+                        )}
+                      </div>
                       <Button size="sm" onClick={() => setAddContactOpen(true)}>
                         <UserPlus className="w-3.5 h-3.5 mr-1" /> Add Contact
                       </Button>
@@ -562,59 +573,66 @@ export default function EventDetail() {
                         <CardContent className="p-6"><Skeleton className="h-16 w-full" /></CardContent>
                       ) : !eventContacts || eventContacts.length === 0 ? (
                         <CardContent className="p-8 text-center text-muted-foreground text-sm">
-                          No contacts linked to this event yet.
+                          No contacts linked to this event.
                         </CardContent>
                       ) : (
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow className="text-xs bg-muted/40">
-                                <TableHead>Contact Role</TableHead>
-                                <TableHead>Contact Name</TableHead>
+                                <TableHead>Name</TableHead>
                                 <TableHead>Account</TableHead>
+                                <TableHead>Role / Type</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Email</TableHead>
+                                <TableHead className="text-center">Primary</TableHead>
                                 <TableHead className="w-10"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {eventContacts.map((ec) => (
-                                <TableRow key={ec.id} className="text-sm">
-                                  <TableCell>
-                                    {ec.contactRole
-                                      ? <Badge variant="outline" className="text-xs">{ec.contactRole}</Badge>
-                                      : <span className="text-muted-foreground">—</span>}
-                                  </TableCell>
-                                  <TableCell className="font-medium">
-                                    <Link
-                                      href={`/contacts/${ec.contactId}`}
-                                      className="text-primary hover:underline"
-                                    >
-                                      {ec.contactName ?? `Contact #${ec.contactId}`}
-                                    </Link>
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground">
-                                    {ec.accountName ?? '—'}
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground whitespace-nowrap">
-                                    {ec.phone ?? '—'}
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground">
-                                    {ec.email ?? '—'}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                                      onClick={() => handleRemove(ec.contactId)}
-                                      title="Remove contact"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                              {eventContacts.map((ec) => {
+                                const isPrimary = ec.contactRole === "Primary Contact";
+                                return (
+                                  <TableRow key={ec.id} className={`text-sm ${isPrimary ? "bg-green-50/40" : ""}`}>
+                                    <TableCell className="font-medium">
+                                      <Link
+                                        href={`/contacts/${ec.contactId}`}
+                                        className="text-primary hover:underline"
+                                      >
+                                        {ec.contactName ?? `Contact #${ec.contactId}`}
+                                      </Link>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {ec.accountName ?? '—'}
+                                    </TableCell>
+                                    <TableCell>
+                                      {ec.contactRole
+                                        ? <Badge variant="outline" className={`text-xs ${isPrimary ? "border-green-400 text-green-700 bg-green-50" : ""}`}>{ec.contactRole}</Badge>
+                                        : <span className="text-muted-foreground">—</span>}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground whitespace-nowrap">
+                                      {ec.phone ?? '—'}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {ec.email ?? '—'}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {isPrimary
+                                        ? <Badge className="text-xs bg-green-600 hover:bg-green-700">Primary</Badge>
+                                        : <span className="text-muted-foreground text-xs">—</span>}
+                                    </TableCell>
+                                    <TableCell>
+                                      <button
+                                        className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                                        onClick={() => handleRemove(ec.contactId)}
+                                        title="Remove contact"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
                             </TableBody>
                           </Table>
                         </div>
