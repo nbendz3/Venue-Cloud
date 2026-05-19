@@ -44,6 +44,7 @@ export function LogActivityModal({ open, onClose, relatedType, relatedId }: Prop
     relatedId,
     date: today,
     internal: false,
+    createdBy: "",
   });
 
   const set = (k: keyof CommEntry, v: string | boolean) => setForm((p) => ({ ...p, [k]: v }));
@@ -114,6 +115,15 @@ export function LogActivityModal({ open, onClose, relatedType, relatedId }: Prop
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label>Logged By</Label>
+            <Input
+              placeholder="Your name"
+              value={form.createdBy ?? ""}
+              onChange={(e) => set("createdBy", e.target.value)}
+            />
           </div>
 
           <div>

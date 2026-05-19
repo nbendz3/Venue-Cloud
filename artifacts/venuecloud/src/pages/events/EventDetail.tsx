@@ -1570,14 +1570,18 @@ export default function EventDetail() {
               }
 
               if (section === "Communication History") {
+                const commPrimaryContact = (eventContacts ?? []).find(
+                  (ec) => ec.contactRole === "Primary Contact"
+                );
                 return (
                   <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
                     <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Communication History</h2>
-                    <Card>
-                      <CardContent className="p-6">
-                        <CommunicationHistoryPanel relatedType="Event" relatedId={eventId} />
-                      </CardContent>
-                    </Card>
+                    <CommunicationHistoryPanel
+                      relatedType="Event"
+                      relatedId={eventId}
+                      primaryContactName={commPrimaryContact?.contactName ?? null}
+                      primaryContactEmail={null}
+                    />
                   </div>
                 );
               }
