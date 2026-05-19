@@ -50,6 +50,8 @@ export type CancelledReason = typeof cancelledReasonsTable.$inferSelect;
 export const setupStylesTable = pgTable("setup_styles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  fieldCode: text("field_code"),
+  definedInMasterList: boolean("defined_in_master_list").default(true),
 });
 export const insertSetupStyleSchema = createInsertSchema(setupStylesTable).omit({ id: true });
 export type SetupStyle = typeof setupStylesTable.$inferSelect;
@@ -92,6 +94,9 @@ export type ContactType = typeof contactTypesTable.$inferSelect;
 export const appliedRatesTable = pgTable("applied_rates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  rate: numeric("rate", { precision: 8, scale: 4 }),
+  revenueCenterId: integer("revenue_center_id"),
+  isActive: boolean("is_active").default(true),
 });
 export const insertAppliedRateSchema = createInsertSchema(appliedRatesTable).omit({ id: true });
 export type AppliedRate = typeof appliedRatesTable.$inferSelect;
@@ -163,6 +168,7 @@ export type FunctionSubType = typeof functionSubTypesTable.$inferSelect;
 export const serviceItemCategoriesTable = pgTable("service_item_categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  fieldCode: text("field_code"),
   revenueCenterId: integer("revenue_center_id"),
   appliedRatesId: integer("applied_rates_id"),
 });
@@ -219,6 +225,31 @@ export const timelineItemsMasterTable = pgTable("timeline_items_master", {
 });
 export const insertTimelineItemMasterSchema = createInsertSchema(timelineItemsMasterTable).omit({ id: true });
 export type TimelineItemMaster = typeof timelineItemsMasterTable.$inferSelect;
+
+// ── Lifecycle models ─────────────────────────────────────────────────────────
+
+export const lifecycleModelsTable = pgTable("lifecycle_models", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  stages: text("stages"), // JSON array of stage name strings
+  isDefault: boolean("is_default").default(false),
+  definedInMasterList: boolean("defined_in_master_list").default(false),
+});
+export const insertLifecycleModelSchema = createInsertSchema(lifecycleModelsTable).omit({ id: true });
+export type LifecycleModel = typeof lifecycleModelsTable.$inferSelect;
+
+// ── Tax rates ────────────────────────────────────────────────────────────────
+
+export const taxRatesTable = pgTable("tax_rates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  rate: numeric("rate", { precision: 8, scale: 4 }),
+  isActive: boolean("is_active").default(true),
+});
+export const insertTaxRateSchema = createInsertSchema(taxRatesTable).omit({ id: true });
+export type TaxRate = typeof taxRatesTable.$inferSelect;
 
 // ── Lifecycle calendar colors ────────────────────────────────────────────────
 

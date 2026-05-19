@@ -10,7 +10,7 @@ import {
   mealPeriodsTable, functionTypesTable, functionSubTypesTable,
   serviceItemCategoriesTable, ingredientsTable, fiscalYearsTable,
   fiscalPeriodsTable, budgetQuotasTable, timelineItemsMasterTable,
-  lifecycleColorsTable,
+  lifecycleColorsTable, lifecycleModelsTable, taxRatesTable,
 } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -45,6 +45,8 @@ const TABLE_REGISTRY: Record<string, PgTable> = {
   "budget-quotas": budgetQuotasTable,
   "timeline-items-master": timelineItemsMasterTable,
   "lifecycle-colors": lifecycleColorsTable,
+  "lifecycle-models": lifecycleModelsTable,
+  "tax-rates": taxRatesTable,
 };
 
 const router = Router();
