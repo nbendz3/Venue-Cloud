@@ -25,6 +25,7 @@ export * from "./eventLifecycleHistory";
 export * from "./settings";
 export * from "./masterEvents";
 export * from "./catalogItems";
+export * from "./menuTemplateItems";
 export * from "./communicationHistory";
 export * from "./eventContacts";
 export * from "./eventPersonnel";

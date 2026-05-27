@@ -796,6 +796,8 @@ export interface MenuTemplate {
   /** @nullable */
   category?: string | null;
   /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
   pricingType?: string | null;
   /** @nullable */
   packagePrice?: string | null;
@@ -804,8 +806,90 @@ export interface MenuTemplate {
   /** @nullable */
   useInclusivePricing?: boolean | null;
   /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  isActive?: boolean | null;
+  /** @nullable */
   createdBy?: string | null;
-  createdAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  itemCount?: number | null;
+}
+
+export interface MenuTemplateItem {
+  id: number;
+  templateId: number;
+  catalogItemId: number;
+  /** @nullable */
+  quantity?: string | null;
+  /** @nullable */
+  priceOverride?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  sortOrder?: number | null;
+  createdAt: string;
+  /** @nullable */
+  catalogItemName?: string | null;
+  /** @nullable */
+  catalogItemDescription?: string | null;
+  /** @nullable */
+  catalogItemUnit?: string | null;
+  /** @nullable */
+  catalogItemPrice?: string | null;
+  /** @nullable */
+  categoryName?: string | null;
+}
+
+export interface MenuTemplateDetail {
+  id: number;
+  name: string;
+  /** @nullable */
+  menuNumber?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  pricingType?: string | null;
+  /** @nullable */
+  packagePrice?: string | null;
+  /** @nullable */
+  packageCost?: string | null;
+  /** @nullable */
+  useInclusivePricing?: boolean | null;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  isActive?: boolean | null;
+  /** @nullable */
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: MenuTemplateItem[];
+}
+
+export interface MenuTemplateInput {
+  name: string;
+  menuNumber?: string;
+  category?: string;
+  categoryId?: number;
+  pricingType?: string;
+  packagePrice?: string;
+  packageCost?: string;
+  useInclusivePricing?: boolean;
+  description?: string;
+  isActive?: boolean;
+  createdBy?: string;
+}
+
+export interface MenuTemplateItemInput {
+  catalogItemId: number;
+  quantity?: string;
+  priceOverride?: string;
+  notes?: string;
+  sortOrder?: number;
 }
 
 export interface ServiceItem {
@@ -1479,13 +1563,7 @@ export type UpdateServiceItemBody = {
 export type GetMenuTemplatesParams = {
 category?: string;
 search?: string;
-};
-
-export type CreateMenuTemplateBody = {
-  name: string;
-  category?: string;
-  pricingType?: string;
-  packagePrice?: number;
+isActive?: boolean;
 };
 
 export type CreatePaymentBody = {

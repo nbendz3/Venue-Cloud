@@ -2101,17 +2101,18 @@ paths:
   /menu-templates:
     get:
       operationId: getMenuTemplates
-      tags: [function-services]
+      tags: [menu-templates]
       summary: Get menu templates library
       parameters:
         - name: category
           in: query
-          schema:
-            type: string
+          schema: { type: string }
         - name: search
           in: query
-          schema:
-            type: string
+          schema: { type: string }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
       responses:
         "200":
           description: Menu templates
@@ -2123,25 +2124,14 @@ paths:
                   $ref: "#/components/schemas/MenuTemplate"
     post:
       operationId: createMenuTemplate
-      tags: [function-services]
+      tags: [menu-templates]
       summary: Create a menu template
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                category:
-                  type: string
-                pricingType:
-                  type: string
-                packagePrice:
-                  type: number
-              required:
-                - name
+              $ref: "#/components/schemas/MenuTemplateInput"
       responses:
         "201":
           description: Created
@@ -2149,6 +2139,144 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuTemplate"
+
+  /menu-templates/{id}:
+    get:
+      operationId: getMenuTemplate
+      tags: [menu-templates]
+      summary: Get a single menu template with its items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Menu template with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuTemplateDetail"
+    put:
+      operationId: updateMenuTemplate
+      tags: [menu-templates]
+      summary: Update a menu template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuTemplateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuTemplate"
+    delete:
+      operationId: deleteMenuTemplate
+      tags: [menu-templates]
+      summary: Delete a menu template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
+  /menu-templates/{id}/items:
+    get:
+      operationId: listMenuTemplateItems
+      tags: [menu-templates]
+      summary: List items in a menu template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenuTemplateItem"
+    post:
+      operationId: addMenuTemplateItem
+      tags: [menu-templates]
+      summary: Add an item to a menu template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuTemplateItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuTemplateItem"
+
+  /menu-templates/{id}/items/{itemId}:
+    put:
+      operationId: updateMenuTemplateItem
+      tags: [menu-templates]
+      summary: Update a menu template item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuTemplateItemInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuTemplateItem"
+    delete:
+      operationId: deleteMenuTemplateItem
+      tags: [menu-templates]
+      summary: Delete a menu template item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: itemId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
 
   # Revenue Centers
   /revenue-centers:
@@ -3593,6 +3721,8 @@ components:
           type: ["string", "null"]
         category:
           type: ["string", "null"]
+        categoryId:
+          type: ["integer", "null"]
         pricingType:
           type: ["string", "null"]
         packagePrice:
@@ -3601,13 +3731,138 @@ components:
           type: ["string", "null"]
         useInclusivePricing:
           type: ["boolean", "null"]
+        description:
+          type: ["string", "null"]
+        isActive:
+          type: ["boolean", "null"]
         createdBy:
           type: ["string", "null"]
         createdAt:
           type: string
+        updatedAt:
+          type: string
+        itemCount:
+          type: ["integer", "null"]
       required:
         - id
         - name
+        - createdAt
+        - updatedAt
+
+    MenuTemplateDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        menuNumber:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        categoryId:
+          type: ["integer", "null"]
+        pricingType:
+          type: ["string", "null"]
+        packagePrice:
+          type: ["string", "null"]
+        packageCost:
+          type: ["string", "null"]
+        useInclusivePricing:
+          type: ["boolean", "null"]
+        description:
+          type: ["string", "null"]
+        isActive:
+          type: ["boolean", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuTemplateItem"
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+        - items
+
+    MenuTemplateInput:
+      type: object
+      properties:
+        name:
+          type: string
+        menuNumber:
+          type: string
+        category:
+          type: string
+        categoryId:
+          type: integer
+        pricingType:
+          type: string
+        packagePrice:
+          type: string
+        packageCost:
+          type: string
+        useInclusivePricing:
+          type: boolean
+        description:
+          type: string
+        isActive:
+          type: boolean
+        createdBy:
+          type: string
+      required: [name]
+
+    MenuTemplateItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        templateId:
+          type: integer
+        catalogItemId:
+          type: integer
+        quantity:
+          type: ["string", "null"]
+        priceOverride:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        sortOrder:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        catalogItemName:
+          type: ["string", "null"]
+        catalogItemDescription:
+          type: ["string", "null"]
+        catalogItemUnit:
+          type: ["string", "null"]
+        catalogItemPrice:
+          type: ["string", "null"]
+        categoryName:
+          type: ["string", "null"]
+      required: [id, templateId, catalogItemId, createdAt]
+
+    MenuTemplateItemInput:
+      type: object
+      properties:
+        catalogItemId:
+          type: integer
+        quantity:
+          type: string
+        priceOverride:
+          type: string
+        notes:
+          type: string
+        sortOrder:
+          type: integer
+      required: [catalogItemId]
 
     ServiceItem:
       type: object

@@ -17,6 +17,7 @@ import {
   Network,
   Zap,
   BookOpen,
+  LayoutList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { icon: FileText, label: "Reports", href: "/reports" },
   { icon: BedDouble, label: "Guest Rooms", href: "/guest-rooms" },
   { icon: BookOpen, label: "Items Library", href: "/settings/items-library" },
+  { icon: LayoutList, label: "Menu Templates", href: "/settings/menu-templates" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 

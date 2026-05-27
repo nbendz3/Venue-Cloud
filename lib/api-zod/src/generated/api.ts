@@ -2631,7 +2631,8 @@ export const DeleteServiceItemParams = zod.object({
  */
 export const GetMenuTemplatesQueryParams = zod.object({
   "category": zod.coerce.string().optional(),
-  "search": zod.coerce.string().optional()
+  "search": zod.coerce.string().optional(),
+  "isActive": zod.coerce.boolean().optional()
 })
 
 export const GetMenuTemplatesResponseItem = zod.object({
@@ -2639,12 +2640,17 @@ export const GetMenuTemplatesResponseItem = zod.object({
   "name": zod.string(),
   "menuNumber": zod.string().nullish(),
   "category": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
   "pricingType": zod.string().nullish(),
   "packagePrice": zod.string().nullish(),
   "packageCost": zod.string().nullish(),
   "useInclusivePricing": zod.boolean().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().nullish(),
   "createdBy": zod.string().nullish(),
-  "createdAt": zod.string().optional()
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "itemCount": zod.number().nullish()
 })
 export const GetMenuTemplatesResponse = zod.array(GetMenuTemplatesResponseItem)
 
@@ -2654,9 +2660,187 @@ export const GetMenuTemplatesResponse = zod.array(GetMenuTemplatesResponseItem)
  */
 export const CreateMenuTemplateBody = zod.object({
   "name": zod.string(),
+  "menuNumber": zod.string().optional(),
   "category": zod.string().optional(),
+  "categoryId": zod.number().optional(),
   "pricingType": zod.string().optional(),
-  "packagePrice": zod.number().optional()
+  "packagePrice": zod.string().optional(),
+  "packageCost": zod.string().optional(),
+  "useInclusivePricing": zod.boolean().optional(),
+  "description": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.string().optional()
+})
+
+
+/**
+ * @summary Get a single menu template with its items
+ */
+export const GetMenuTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMenuTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "menuNumber": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "pricingType": zod.string().nullish(),
+  "packagePrice": zod.string().nullish(),
+  "packageCost": zod.string().nullish(),
+  "useInclusivePricing": zod.boolean().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "catalogItemId": zod.number(),
+  "quantity": zod.string().nullish(),
+  "priceOverride": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "catalogItemName": zod.string().nullish(),
+  "catalogItemDescription": zod.string().nullish(),
+  "catalogItemUnit": zod.string().nullish(),
+  "catalogItemPrice": zod.string().nullish(),
+  "categoryName": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Update a menu template
+ */
+export const UpdateMenuTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateMenuTemplateBody = zod.object({
+  "name": zod.string(),
+  "menuNumber": zod.string().optional(),
+  "category": zod.string().optional(),
+  "categoryId": zod.number().optional(),
+  "pricingType": zod.string().optional(),
+  "packagePrice": zod.string().optional(),
+  "packageCost": zod.string().optional(),
+  "useInclusivePricing": zod.boolean().optional(),
+  "description": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "createdBy": zod.string().optional()
+})
+
+export const UpdateMenuTemplateResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "menuNumber": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "pricingType": zod.string().nullish(),
+  "packagePrice": zod.string().nullish(),
+  "packageCost": zod.string().nullish(),
+  "useInclusivePricing": zod.boolean().nullish(),
+  "description": zod.string().nullish(),
+  "isActive": zod.boolean().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "itemCount": zod.number().nullish()
+})
+
+
+/**
+ * @summary Delete a menu template
+ */
+export const DeleteMenuTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
+ * @summary List items in a menu template
+ */
+export const ListMenuTemplateItemsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListMenuTemplateItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "catalogItemId": zod.number(),
+  "quantity": zod.string().nullish(),
+  "priceOverride": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "catalogItemName": zod.string().nullish(),
+  "catalogItemDescription": zod.string().nullish(),
+  "catalogItemUnit": zod.string().nullish(),
+  "catalogItemPrice": zod.string().nullish(),
+  "categoryName": zod.string().nullish()
+})
+export const ListMenuTemplateItemsResponse = zod.array(ListMenuTemplateItemsResponseItem)
+
+
+/**
+ * @summary Add an item to a menu template
+ */
+export const AddMenuTemplateItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AddMenuTemplateItemBody = zod.object({
+  "catalogItemId": zod.number(),
+  "quantity": zod.string().optional(),
+  "priceOverride": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+
+/**
+ * @summary Update a menu template item
+ */
+export const UpdateMenuTemplateItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "itemId": zod.coerce.number()
+})
+
+export const UpdateMenuTemplateItemBody = zod.object({
+  "catalogItemId": zod.number(),
+  "quantity": zod.string().optional(),
+  "priceOverride": zod.string().optional(),
+  "notes": zod.string().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateMenuTemplateItemResponse = zod.object({
+  "id": zod.number(),
+  "templateId": zod.number(),
+  "catalogItemId": zod.number(),
+  "quantity": zod.string().nullish(),
+  "priceOverride": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "catalogItemName": zod.string().nullish(),
+  "catalogItemDescription": zod.string().nullish(),
+  "catalogItemUnit": zod.string().nullish(),
+  "catalogItemPrice": zod.string().nullish(),
+  "categoryName": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a menu template item
+ */
+export const DeleteMenuTemplateItemParams = zod.object({
+  "id": zod.coerce.number(),
+  "itemId": zod.coerce.number()
 })
 
 

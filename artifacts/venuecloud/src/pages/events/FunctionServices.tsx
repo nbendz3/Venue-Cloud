@@ -1448,17 +1448,33 @@ function MenuBlock({
   );
 }
 
+const PRICING_TYPES_MENU = [
+  "A La Carte Pricing",
+  "Package Pricing - Percentage Amount Allocation",
+  "Package Pricing - Monetary Amount Allocation",
+];
+
 function AddMenuDialog({
+  eventId,
   functionId,
   onClose,
 }: {
+  eventId: number;
   functionId: number;
   onClose: () => void;
 }) {
+  const [view, setView] = useState<"library" | "custom">("library");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Show All");
   const [selected, setSelected] = useState<number[]>([]);
+
+  // Custom menu form state
+  const [customName, setCustomName] = useState("Custom Menu");
+  const [customCategory, setCustomCategory] = useState("_none_");
+  const [customPricingType, setCustomPricingType] = useState("A La Carte Pricing");
+
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
 
   const { data: templates, isLoading } = useGetMenuTemplates(
@@ -1481,14 +1497,26 @@ function AddMenuDialog({
     onClose();
   };
 
-  const handleAddCustom = () => {
+  const handleCreateCustom = () => {
+    if (!customName.trim()) return;
     createMenu.mutate(
-      { id: functionId, data: { functionMenuName: "Custom Menu", pricingType: "A La Carte Pricing" } },
       {
-        onSuccess: () => {
+        id: functionId,
+        data: {
+          functionMenuName: customName.trim(),
+          pricingType: customPricingType !== "_none_" ? customPricingType : "A La Carte Pricing",
+          description: customCategory !== "_none_" ? customCategory : undefined,
+        },
+      },
+      {
+        onSuccess: (newMenu: any) => {
           queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
-          toast({ title: "Custom menu added" });
+          toast({ title: `"${customName.trim()}" created` });
           onClose();
+          navigate(`/events/${eventId}/functions/${functionId}/menus/${newMenu.id}/edit`);
+        },
+        onError: () => {
+          toast({ title: "Failed to create menu", variant: "destructive" });
         },
       }
     );
@@ -1498,69 +1526,128 @@ function AddMenuDialog({
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add Menu from Template Library</DialogTitle>
-        </DialogHeader>
-        <div className="flex gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search templates..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center gap-3">
+            <DialogTitle>
+              {view === "library" ? "Add Menu from Template Library" : "Create Custom (Blank) Menu"}
+            </DialogTitle>
           </div>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MENU_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="border rounded-lg overflow-hidden max-h-80 overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Menu #</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Pricing Type</TableHead>
-                <TableHead>Package Price</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow><TableCell colSpan={6} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
-              )}
-              {templates?.map((t: any) => (
-                <TableRow
-                  key={t.id}
-                  className={`cursor-pointer ${selected.includes(t.id) ? "bg-primary/10" : ""}`}
-                  onClick={() => toggleSelect(t.id)}
-                >
-                  <TableCell>
-                    <Checkbox checked={selected.includes(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
-                  </TableCell>
-                  <TableCell className="font-medium">{t.name}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{t.menuNumber}</TableCell>
-                  <TableCell className="text-sm">{t.category}</TableCell>
-                  <TableCell className="text-sm text-xs">{t.pricingType}</TableCell>
-                  <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={handleAddCustom} className="sm:mr-auto">
-            <Plus className="w-4 h-4 mr-1" /> Add Custom (Blank) Menu
-          </Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleAdd} disabled={selected.length === 0 || addTemplate.isPending}>
-            Add Selected ({selected.length})
-          </Button>
-        </DialogFooter>
+        </DialogHeader>
+
+        {view === "library" ? (
+          <>
+            <div className="flex gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search templates..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MENU_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Menu #</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Pricing Type</TableHead>
+                    <TableHead>Package Price</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
+                  )}
+                  {!isLoading && (!templates || templates.length === 0) && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No templates found.</TableCell></TableRow>
+                  )}
+                  {templates?.map((t: any) => (
+                    <TableRow
+                      key={t.id}
+                      className={`cursor-pointer ${selected.includes(t.id) ? "bg-primary/10" : ""}`}
+                      onClick={() => toggleSelect(t.id)}
+                    >
+                      <TableCell>
+                        <Checkbox checked={selected.includes(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
+                      </TableCell>
+                      <TableCell className="font-medium">{t.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{t.menuNumber}</TableCell>
+                      <TableCell className="text-sm">{t.category}</TableCell>
+                      <TableCell className="text-sm text-xs">{t.pricingType}</TableCell>
+                      <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setView("custom")} className="sm:mr-auto">
+                <Plus className="w-4 h-4 mr-1" /> Add Custom (Blank) Menu
+              </Button>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleAdd} disabled={selected.length === 0 || addTemplate.isPending}>
+                Add Selected ({selected.length})
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Menu Name <span className="text-red-500">*</span></Label>
+                <Input
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder="e.g. Evening Reception Menu"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select value={customCategory} onValueChange={setCustomCategory}>
+                  <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none_">— None —</SelectItem>
+                    {MENU_CATEGORIES.filter(c => c !== "Show All").map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Pricing Type</Label>
+                <Select value={customPricingType} onValueChange={setCustomPricingType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PRICING_TYPES_MENU.map(p => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setView("library")}>← Back to Library</Button>
+              <Button variant="outline" onClick={onClose}>Cancel</Button>
+              <Button
+                onClick={handleCreateCustom}
+                disabled={!customName.trim() || createMenu.isPending}
+              >
+                {createMenu.isPending ? "Creating…" : "Create & Edit Menu"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1712,7 +1799,7 @@ export default function FunctionServices() {
       </div>
 
       {addMenuOpen && (
-        <AddMenuDialog functionId={functionId} onClose={() => setAddMenuOpen(false)} />
+        <AddMenuDialog eventId={eventId} functionId={functionId} onClose={() => setAddMenuOpen(false)} />
       )}
     </div>
   );

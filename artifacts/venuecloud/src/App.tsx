@@ -52,6 +52,7 @@ import ComposeEmail from "@/pages/communication/ComposeEmail";
 
 import Settings from "@/pages/settings/Settings";
 import ItemsLibrary from "@/pages/settings/ItemsLibrary";
+import MenuTemplates from "@/pages/settings/MenuTemplates";
 
 import { QuickEntryModal } from "@/components/QuickEntryModal";
 import { RecentRecordsProvider } from "@/components/RecentRecords";
@@ -129,6 +130,7 @@ function Router() {
 
         {/* Settings */}
         <Route path="/settings/items-library" component={ItemsLibrary} />
+        <Route path="/settings/menu-templates" component={MenuTemplates} />
         <Route path="/settings" component={Settings} />
 
         <Route component={NotFound} />
