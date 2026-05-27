@@ -21,7 +21,7 @@ export default function EventEdit() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const qc = useQueryClient();
-  const isNew = id === "new";
+  const isNew = !id || id === "new";
 
   const { data: eventTypes = [] } = useQuery<{id:number;name:string}[]>({ queryKey: ["settings","event-types"], queryFn: () => fetch(`${BASE}/settings/event-types`).then(r=>r.json()) });
   const { data: eventCategories = [] } = useQuery<{id:number;name:string}[]>({ queryKey: ["settings","event-categories"], queryFn: () => fetch(`${BASE}/settings/event-categories`).then(r=>r.json()) });

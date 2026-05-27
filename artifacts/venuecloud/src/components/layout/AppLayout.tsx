@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { useIsFetching } from "@tanstack/react-query";
 import {
   Home,
   CalendarDays,
@@ -18,12 +19,17 @@ import {
   Zap,
   BookOpen,
   LayoutList,
+  UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RecentRecordsBar } from "@/components/RecentRecords";
 
-const NAV_ITEMS = [
+type NavItem =
+  | { kind?: undefined; icon: React.ElementType; label: string; href: string }
+  | { kind: "section"; label: string };
+
+const NAV_ITEMS: NavItem[] = [
   { icon: Home, label: "Home", href: "/" },
   { icon: CalendarDays, label: "Events", href: "/events" },
   { icon: Users, label: "Event Leads", href: "/leads" },
@@ -33,6 +39,7 @@ const NAV_ITEMS = [
   { icon: Network, label: "Master Events", href: "/master-events" },
   { icon: FileText, label: "Reports", href: "/reports" },
   { icon: BedDouble, label: "Guest Rooms", href: "/guest-rooms" },
+  { kind: "section", label: "Food & Beverage" },
   { icon: BookOpen, label: "Items Library", href: "/settings/items-library" },
   { icon: LayoutList, label: "Menu Templates", href: "/settings/menu-templates" },
   { icon: Settings, label: "Settings", href: "/settings" },
@@ -45,6 +52,7 @@ type Props = {
 
 export function AppLayout({ children, onQuickEntry }: Props) {
   const [location] = useLocation();
+  const isFetching = useIsFetching();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -53,8 +61,18 @@ export function AppLayout({ children, onQuickEntry }: Props) {
         <div className="h-14 flex items-center px-4 font-bold text-lg border-b border-sidebar-border shadow-sm">
           The Pines Resort
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
-          {NAV_ITEMS.map((item) => {
+        <nav className="flex-1 overflow-y-auto py-4 space-y-0.5 px-2">
+          {NAV_ITEMS.map((item, idx) => {
+            if (item.kind === "section") {
+              return (
+                <div key={`section-${idx}`} className="pt-3 pb-1 px-3 flex items-center gap-1.5">
+                  <UtensilsCrossed className="w-3 h-3 text-sidebar-foreground/40" />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {item.label}
+                  </span>
+                </div>
+              );
+            }
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             return (
               <Link
@@ -90,7 +108,7 @@ export function AppLayout({ children, onQuickEntry }: Props) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="h-14 border-b bg-card flex items-center justify-between px-4 shadow-sm z-10 flex-shrink-0">
+        <header className="h-14 border-b bg-card flex items-center justify-between px-4 shadow-sm z-10 flex-shrink-0 relative">
           <div className="font-semibold text-lg">VenueCloud</div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
@@ -109,6 +127,12 @@ export function AppLayout({ children, onQuickEntry }: Props) {
               <AvatarFallback className="bg-primary/10 text-primary text-xs">JS</AvatarFallback>
             </Avatar>
           </div>
+          {/* Global fetch progress bar */}
+          {isFetching > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary/20 overflow-hidden">
+              <div className="h-full bg-primary animate-[progress_1.2s_ease-in-out_infinite]" style={{ width: "40%" }} />
+            </div>
+          )}
         </header>
 
         {/* Colored Bookmarks / Recent Records Bar */}
