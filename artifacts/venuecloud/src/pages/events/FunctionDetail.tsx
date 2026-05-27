@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useGetEvent, useListEventFunctions, useGetFunction } from "@workspace/api-client-react";
+import { useGetEvent, useListEventFunctions, useGetFunction, useGetFunctionMenus } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import {
 import {
   ArrowLeft, Edit, DollarSign, MoreHorizontal, Plus, Utensils,
   Users, Clock, FileText, CheckSquare, Calendar, MessageSquare,
-  Paperclip, BookOpen, ChevronRight,
+  Paperclip, BookOpen, ChevronRight, Printer,
 } from "lucide-react";
 import { CommunicationHistoryPanel } from "@/components/CommunicationHistoryPanel";
 
@@ -61,6 +61,7 @@ export default function FunctionDetail() {
   const { data: event } = useGetEvent(eventId, { query: { enabled: !!eventId } as any });
   const { data: functions } = useListEventFunctions(eventId, { query: { enabled: !!eventId } as any });
   const { data: fn, isLoading } = useGetFunction(functionId, { query: { enabled: !!functionId } as any });
+  const { data: menus } = useGetFunctionMenus(functionId, { query: { enabled: !!functionId } as any });
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-4" /><Skeleton className="h-96 w-full" /></div>;
@@ -219,6 +220,14 @@ export default function FunctionDetail() {
                   <Field label="Set" value={(fn as any).set} />
                   <Field label="Auto Update Attendance" value={(fn as any).autoUpdateAttendance} />
                   <Field label="Owner" value={(fn as any).owner} />
+                  {(fn as any).notes && (
+                    <div className="col-span-3">
+                      <div className="text-xs text-muted-foreground mb-0.5">Setup Notes</div>
+                      <div className="text-sm bg-amber-50 border border-amber-200 rounded-md p-3 whitespace-pre-wrap">
+                        {(fn as any).notes}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -307,19 +316,99 @@ export default function FunctionDetail() {
 
             {/* Section 3: Services */}
             <div id="fn-section-3" className="scroll-mt-6">
-              <h2 className="text-lg font-semibold mb-4 pb-2 border-b flex items-center gap-2">
-                <Utensils className="w-4 h-4 text-orange-500" /> Services
-              </h2>
-              <Card>
-                <CardContent className="p-6 flex gap-3">
-                  <Button asChild>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-orange-500" /> Services
+                </h2>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => window.print()}>
+                    <Printer className="w-3.5 h-3.5 mr-1" /> Print BEO
+                  </Button>
+                  <Button size="sm" asChild>
                     <Link href={`/events/${eventId}/functions/${functionId}/services`}>
-                      <Utensils className="w-4 h-4 mr-2" /> Service Menus (New)
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Manage Menus
                     </Link>
                   </Button>
-                  <Button variant="outline">Service Menus (Classic)</Button>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+
+              {((menus as any[]) ?? []).length > 0 ? (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="text-xs">
+                          <TableHead>Menu Name</TableHead>
+                          <TableHead>Pricing Type</TableHead>
+                          <TableHead>Items</TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
+                          <TableHead className="w-20">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {((menus as any[]) ?? []).map((menu: any) => {
+                          const itemCount = (menu.serviceTypes ?? []).reduce(
+                            (s: number, st: any) => s + (st.items?.length ?? 0), 0
+                          );
+                          const subtotal = parseFloat(menu.menuTotalCharges ?? "0");
+                          return (
+                            <TableRow key={menu.id}>
+                              <TableCell className="font-medium text-sm">{menu.functionMenuName}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="text-xs">
+                                  {menu.pricingType === "A La Carte Pricing" ? "A La Carte" :
+                                   menu.pricingType?.includes("Package") ? "Package" : menu.pricingType ?? "—"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {itemCount} item{itemCount !== 1 ? "s" : ""}
+                              </TableCell>
+                              <TableCell className="text-right text-sm font-medium">
+                                {subtotal > 0 ? `$${subtotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
+                              </TableCell>
+                              <TableCell>
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link href={`/events/${eventId}/functions/${functionId}/menus/${menu.id}/edit`}>
+                                    Edit
+                                  </Link>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    {/* Menus total row */}
+                    {(() => {
+                      const total = ((menus as any[]) ?? []).reduce(
+                        (s: number, m: any) => s + parseFloat(m.menuTotalCharges ?? "0"), 0
+                      );
+                      return total > 0 ? (
+                        <div className="flex justify-end px-4 py-3 border-t bg-muted/30">
+                          <div className="flex items-center gap-6 text-sm">
+                            <span className="text-muted-foreground">Services Subtotal</span>
+                            <span className="font-bold text-base">
+                              ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-8 flex flex-col items-center gap-3 text-center">
+                    <Utensils className="w-8 h-8 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">No service menus added yet.</p>
+                    <Button size="sm" asChild>
+                      <Link href={`/events/${eventId}/functions/${functionId}/services`}>
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Add First Menu
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Section 4: Notes */}
