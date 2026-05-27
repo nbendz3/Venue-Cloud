@@ -53,6 +53,7 @@ import {
   MoreHorizontal,
   Search,
   X,
+  Printer,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1748,6 +1749,11 @@ export default function FunctionServices() {
             </Button>
             <Button size="sm" variant="outline" asChild>
               <Link href={`/events/${eventId}/functions/${functionId}/financials`}>Financials</Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/events/${eventId}/functions/${functionId}/beo`}>
+                <Printer className="w-4 h-4 mr-1" /> Print BEO
+              </Link>
             </Button>
             <Button size="sm" onClick={() => setAddMenuOpen(true)}>
               <Plus className="w-4 h-4 mr-1" /> Add Menu

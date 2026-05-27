@@ -17,6 +17,7 @@ import FunctionFinancials from "@/pages/events/FunctionFinancials";
 import FunctionDetail from "@/pages/events/FunctionDetail";
 import FunctionEdit from "@/pages/events/FunctionEdit";
 import FunctionMenuEdit from "@/pages/events/FunctionMenuEdit";
+import FunctionBEO from "@/pages/events/FunctionBEO";
 
 import LeadsList from "@/pages/leads/LeadsList";
 import LeadDetail from "@/pages/leads/LeadDetail";
@@ -72,6 +73,7 @@ function Router() {
         <Route path="/events/calendar" component={EventCalendar} />
         <Route path="/events/:id/edit" component={EventEdit} />
         <Route path="/events/:id/financials" component={EventFinancials} />
+        <Route path="/events/:id/functions/:functionId/beo" component={FunctionBEO} />
         <Route path="/events/:id/functions/new" component={FunctionEdit} />
         <Route path="/events/:id/functions/:functionId/menus/:menuId/edit" component={FunctionMenuEdit} />
         <Route path="/events/:id/functions/:functionId/services" component={FunctionServices} />

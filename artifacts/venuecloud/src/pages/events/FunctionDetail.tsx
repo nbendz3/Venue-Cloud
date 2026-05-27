@@ -321,8 +321,10 @@ export default function FunctionDetail() {
                   <Utensils className="w-4 h-4 text-orange-500" /> Services
                 </h2>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => window.print()}>
-                    <Printer className="w-3.5 h-3.5 mr-1" /> Print BEO
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/events/${eventId}/functions/${functionId}/beo`}>
+                      <Printer className="w-3.5 h-3.5 mr-1" /> Print BEO
+                    </Link>
                   </Button>
                   <Button size="sm" asChild>
                     <Link href={`/events/${eventId}/functions/${functionId}/services`}>
