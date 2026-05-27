@@ -28,6 +28,7 @@ import masterEventsRouter from "./masterEvents";
 import communicationHistoryRouter from "./communicationHistory";
 import eventContactsRouter from "./eventContacts";
 import eventPersonnelRouter from "./eventPersonnel";
+import catalogItemsRouter from "./catalogItems";
 
 const router: IRouter = Router();
 
@@ -59,5 +60,6 @@ router.use("/dashboard", dashboardRouter);
 router.use("/settings", settingsRouter);
 router.use("/master-events", masterEventsRouter);
 router.use("/communication-history", communicationHistoryRouter);
+router.use("/catalog-items", catalogItemsRouter);
 
 export default router;

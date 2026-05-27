@@ -1467,6 +1467,117 @@ paths:
         "204":
           description: Deleted
 
+  # Catalog Items (master product library)
+  /catalog-items:
+    get:
+      operationId: listCatalogItems
+      tags: [catalog-items]
+      summary: List all catalog items
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: categoryId
+          in: query
+          schema: { type: integer }
+        - name: masterTypeId
+          in: query
+          schema: { type: integer }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Catalog items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogItem"
+    post:
+      operationId: createCatalogItem
+      tags: [catalog-items]
+      summary: Create a catalog item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItem"
+
+  /catalog-items/meta:
+    get:
+      operationId: getCatalogItemsMeta
+      tags: [catalog-items]
+      summary: Get lookup lists for categories, service types, revenue centers
+      responses:
+        "200":
+          description: Meta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItemsMeta"
+
+  /catalog-items/{id}:
+    get:
+      operationId: getCatalogItem
+      tags: [catalog-items]
+      summary: Get a single catalog item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Catalog item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItem"
+    put:
+      operationId: updateCatalogItem
+      tags: [catalog-items]
+      summary: Update a catalog item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogItemInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItem"
+    delete:
+      operationId: deleteCatalogItem
+      tags: [catalog-items]
+      summary: Delete a catalog item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Deleted
+
   # Settings (generic lookup tables)
   /settings/{table}:
     get:
@@ -4233,3 +4344,94 @@ components:
         textColor:
           type: string
       required: [id, status, color, textColor]
+
+    CatalogItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        price:
+          type: ["string", "null"]
+        cost:
+          type: ["string", "null"]
+        categoryId:
+          type: ["integer", "null"]
+        masterTypeId:
+          type: ["integer", "null"]
+        revenueCenterId:
+          type: ["integer", "null"]
+        unit:
+          type: ["string", "null"]
+        taxRateCenterId:
+          type: ["integer", "null"]
+        isActive:
+          type: ["boolean", "null"]
+        sortOrder:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, name, createdAt, updatedAt]
+
+    CatalogItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: string
+        cost:
+          type: string
+        categoryId:
+          type: integer
+        masterTypeId:
+          type: integer
+        revenueCenterId:
+          type: integer
+        unit:
+          type: string
+        taxRateCenterId:
+          type: integer
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+      required: [name]
+
+    CatalogItemsMeta:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              field_code: { type: ["string", "null"] }
+            required: [id, name]
+        masterTypes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+            required: [id, name]
+        revenueCenters:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              sales_tax_rate: { type: ["string", "null"] }
+            required: [id, name]
+      required: [categories, masterTypes, revenueCenters]

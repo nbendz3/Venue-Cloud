@@ -1913,6 +1913,146 @@ export const DeleteCommunicationHistoryParams = zod.object({
 
 
 /**
+ * @summary List all catalog items
+ */
+export const ListCatalogItemsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "categoryId": zod.coerce.number().optional(),
+  "masterTypeId": zod.coerce.number().optional(),
+  "isActive": zod.coerce.boolean().optional()
+})
+
+export const ListCatalogItemsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "masterTypeId": zod.number().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "taxRateCenterId": zod.number().nullish(),
+  "isActive": zod.boolean().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListCatalogItemsResponse = zod.array(ListCatalogItemsResponseItem)
+
+
+/**
+ * @summary Create a catalog item
+ */
+export const CreateCatalogItemBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().optional(),
+  "price": zod.string().optional(),
+  "cost": zod.string().optional(),
+  "categoryId": zod.number().optional(),
+  "masterTypeId": zod.number().optional(),
+  "revenueCenterId": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "taxRateCenterId": zod.number().optional(),
+  "isActive": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+
+/**
+ * @summary Get lookup lists for categories, service types, revenue centers
+ */
+export const GetCatalogItemsMetaResponse = zod.object({
+  "categories": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "field_code": zod.string().nullish()
+})),
+  "masterTypes": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+})),
+  "revenueCenters": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "sales_tax_rate": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Get a single catalog item
+ */
+export const GetCatalogItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCatalogItemResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "masterTypeId": zod.number().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "taxRateCenterId": zod.number().nullish(),
+  "isActive": zod.boolean().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a catalog item
+ */
+export const UpdateCatalogItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCatalogItemBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().optional(),
+  "price": zod.string().optional(),
+  "cost": zod.string().optional(),
+  "categoryId": zod.number().optional(),
+  "masterTypeId": zod.number().optional(),
+  "revenueCenterId": zod.number().optional(),
+  "unit": zod.string().optional(),
+  "taxRateCenterId": zod.number().optional(),
+  "isActive": zod.boolean().optional(),
+  "sortOrder": zod.number().optional()
+})
+
+export const UpdateCatalogItemResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "price": zod.string().nullish(),
+  "cost": zod.string().nullish(),
+  "categoryId": zod.number().nullish(),
+  "masterTypeId": zod.number().nullish(),
+  "revenueCenterId": zod.number().nullish(),
+  "unit": zod.string().nullish(),
+  "taxRateCenterId": zod.number().nullish(),
+  "isActive": zod.boolean().nullish(),
+  "sortOrder": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a catalog item
+ */
+export const DeleteCatalogItemParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+/**
  * @summary List all items in a settings table
  */
 export const ListSettingsTableParams = zod.object({

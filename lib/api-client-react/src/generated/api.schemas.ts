@@ -1277,6 +1277,72 @@ export interface LifecycleColor {
   textColor: string;
 }
 
+export interface CatalogItem {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  price?: string | null;
+  /** @nullable */
+  cost?: string | null;
+  /** @nullable */
+  categoryId?: number | null;
+  /** @nullable */
+  masterTypeId?: number | null;
+  /** @nullable */
+  revenueCenterId?: number | null;
+  /** @nullable */
+  unit?: string | null;
+  /** @nullable */
+  taxRateCenterId?: number | null;
+  /** @nullable */
+  isActive?: boolean | null;
+  /** @nullable */
+  sortOrder?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogItemInput {
+  name: string;
+  description?: string;
+  price?: string;
+  cost?: string;
+  categoryId?: number;
+  masterTypeId?: number;
+  revenueCenterId?: number;
+  unit?: string;
+  taxRateCenterId?: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
+export type CatalogItemsMetaCategoriesItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  field_code?: string | null;
+};
+
+export type CatalogItemsMetaMasterTypesItem = {
+  id: number;
+  name: string;
+};
+
+export type CatalogItemsMetaRevenueCentersItem = {
+  id: number;
+  name: string;
+  /** @nullable */
+  sales_tax_rate?: string | null;
+};
+
+export interface CatalogItemsMeta {
+  categories: CatalogItemsMetaCategoriesItem[];
+  masterTypes: CatalogItemsMetaMasterTypesItem[];
+  revenueCenters: CatalogItemsMetaRevenueCentersItem[];
+}
+
 export type ListEventsParams = {
 status?: string;
 site?: string;
@@ -1330,6 +1396,13 @@ export type RunReportPostBody = {
 export type ListCommunicationHistoryParams = {
 relatedType?: string;
 relatedId?: number;
+};
+
+export type ListCatalogItemsParams = {
+search?: string;
+categoryId?: number;
+masterTypeId?: number;
+isActive?: boolean;
 };
 
 export type GetCalendarEventsParams = {

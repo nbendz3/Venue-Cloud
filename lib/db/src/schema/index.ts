@@ -24,6 +24,7 @@ export * from "./functionLifecycleHistory";
 export * from "./eventLifecycleHistory";
 export * from "./settings";
 export * from "./masterEvents";
+export * from "./catalogItems";
 export * from "./communicationHistory";
 export * from "./eventContacts";
 export * from "./eventPersonnel";

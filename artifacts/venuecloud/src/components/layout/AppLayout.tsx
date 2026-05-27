@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Network,
   Zap,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { icon: Network, label: "Master Events", href: "/master-events" },
   { icon: FileText, label: "Reports", href: "/reports" },
   { icon: BedDouble, label: "Guest Rooms", href: "/guest-rooms" },
+  { icon: BookOpen, label: "Items Library", href: "/settings/items-library" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 

@@ -51,6 +51,7 @@ import GenerateDocuments from "@/pages/communication/GenerateDocuments";
 import ComposeEmail from "@/pages/communication/ComposeEmail";
 
 import Settings from "@/pages/settings/Settings";
+import ItemsLibrary from "@/pages/settings/ItemsLibrary";
 
 import { QuickEntryModal } from "@/components/QuickEntryModal";
 import { RecentRecordsProvider } from "@/components/RecentRecords";
@@ -127,6 +128,7 @@ function Router() {
         <Route path="/communication/compose-email/:eventId" component={ComposeEmail} />
 
         {/* Settings */}
+        <Route path="/settings/items-library" component={ItemsLibrary} />
         <Route path="/settings" component={Settings} />
 
         <Route component={NotFound} />
