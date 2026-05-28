@@ -1355,9 +1355,10 @@ function MenuBlock({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ selected: newVal }),
-    }).then(() => {
-      invalidate();
-      // After server confirms + cache refreshed, clear optimistic entry
+    }).then(async () => {
+      // Await the full refetch so the cache has fresh data before we drop
+      // the optimistic override — otherwise there's a flicker back to the old value.
+      await invalidate();
       setOptimisticSelected((prev) => {
         const next = new Map(prev);
         next.delete(item.id);
