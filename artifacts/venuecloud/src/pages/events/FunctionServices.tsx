@@ -18,6 +18,7 @@ import {
   useGetRevenueCenters,
   useListCatalogItems,
   useGetCatalogItemsMeta,
+  getGetFunctionMenusQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -205,7 +206,7 @@ function ServiceItemRow({
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
           setEditing(false);
           toast({ title: "Item updated" });
         },
@@ -218,7 +219,7 @@ function ServiceItemRow({
       { id: item.id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
           toast({ title: "Item deleted" });
         },
       }
@@ -629,7 +630,7 @@ function ServiceTypeBlock({
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
           setAddItemOpen(false);
           setItemForm({ itemName: "", description: "", aLaCartePrice: "", addOnPrice: "", cost: "", quantity: "1", appliedRates: "Gratuity and Sales Tax", category: "" });
           toast({ title: "Item added" });
@@ -643,7 +644,7 @@ function ServiceTypeBlock({
       { id: serviceType.id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
           toast({ title: "Service type removed" });
         },
       }
@@ -850,7 +851,7 @@ function ServiceTypeBlock({
                       data: { itemName: mi.name, aLaCartePrice: mi.price, cost: mi.cost, appliedRates: mi.rates, quantity: 1, category: mi.category },
                     });
                   }
-                  queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+                  queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
                   toast({ title: `${selectedMasterItems.length} item(s) added from library` });
                   setMasterListOpen(false);
                   setSelectedMasterItems([]);
@@ -937,7 +938,7 @@ function ServiceTypeBlock({
                       data: { itemName: src.itemName, description: src.description || undefined, aLaCartePrice: src.aLaCartePrice ? parseFloat(src.aLaCartePrice) : undefined, addOnPrice: src.addOnPrice ? parseFloat(src.addOnPrice) : undefined, cost: src.cost ? parseFloat(src.cost) : undefined, quantity: src.quantity ? parseFloat(src.quantity) : 1, appliedRates: src.appliedRates || undefined, category: src.category || undefined },
                     });
                   }
-                  queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+                  queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
                   toast({ title: `${selectedMenuItems.length} item(s) copied from menu` });
                   setFromMenuOpen(false);
                   setSelectedMenuItems([]);
@@ -1250,7 +1251,7 @@ function MenuBlock({
   const updateItem = useUpdateServiceItem();
   const deleteItem = useDeleteServiceItem();
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
 
   const handleAddFromLibrary = async (
     toAdd: Array<{ catalogItem: any; qty: string; categoryName: string; sectionName: string; notes: string }>
@@ -2016,7 +2017,7 @@ function AddMenuDialog({
     for (const templateId of selected) {
       await addTemplate.mutateAsync({ id: functionId, data: { templateId } });
     }
-    queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+    queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
     toast({ title: `${selected.length} menu(s) added` });
     onClose();
   };
@@ -2034,7 +2035,7 @@ function AddMenuDialog({
       },
       {
         onSuccess: (newMenu: any) => {
-          queryClient.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+          queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
           toast({ title: `"${customName.trim()}" created` });
           onClose();
           navigate(`/events/${eventId}/functions/${functionId}/menus/${newMenu.id}/edit`);
