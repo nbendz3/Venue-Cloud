@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
         createdBy: menuTemplatesTable.createdBy,
         createdAt: menuTemplatesTable.createdAt,
         updatedAt: menuTemplatesTable.updatedAt,
-        itemCount: sql<number>`(SELECT COUNT(*)::int FROM menu_template_items WHERE template_id = ${menuTemplatesTable.id})`,
+        itemCount: sql<number>`(SELECT COUNT(*)::int FROM menu_template_items WHERE template_id = menu_templates.id)`,
       })
       .from(menuTemplatesTable)
       .orderBy(asc(menuTemplatesTable.name));
