@@ -36,9 +36,11 @@ export default function EventsList() {
             <CalendarIcon className="w-4 h-4 mr-2" />
             Calendar View
           </Link>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            New Event
+          <Button asChild>
+            <Link href="/events/new">
+              <Plus className="w-4 h-4 mr-2" />
+              New Event
+            </Link>
           </Button>
         </div>
       </div>
