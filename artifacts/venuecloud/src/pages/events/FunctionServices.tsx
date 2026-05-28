@@ -1931,21 +1931,22 @@ function AddMenuDialog({
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Menu #</TableHead>
+                    <TableHead>Category</TableHead>
                     <TableHead>Pricing Type</TableHead>
                     <TableHead>Package Price</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
                   )}
                   {!isLoading && groupedTemplates.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No templates found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No templates found.</TableCell></TableRow>
                   )}
                   {groupedTemplates.map(([catName, rows]) => (
                     <>
                       <TableRow key={`cat-${catName}`} className="bg-muted/60 pointer-events-none select-none">
-                        <TableCell colSpan={5} className="py-1.5 px-3">
+                        <TableCell colSpan={6} className="py-1.5 px-3">
                           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {catName}
                           </span>
@@ -1963,6 +1964,7 @@ function AddMenuDialog({
                           </TableCell>
                           <TableCell className="font-medium">{t.name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{t.menuNumber ?? "—"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{resolveCategory(t)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{formatPricingType(t.pricingType)}</TableCell>
                           <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
                         </TableRow>
