@@ -1,4 +1,5 @@
 import { useParams, Link } from "wouter";
+import { formatPricingType } from "@/lib/formatters";
 import {
   useGetEvent,
   useGetFunction,
@@ -240,7 +241,7 @@ export default function FunctionBEO() {
                       </span>
                       <span className="font-semibold">{menu.functionMenuName}</span>
                       {menu.pricingType && (
-                        <span className="ml-2 text-xs text-gray-300">· {menu.pricingType}</span>
+                        <span className="ml-2 text-xs text-gray-300">· {formatPricingType(menu.pricingType)}</span>
                       )}
                       {menu.menuLocation && (
                         <span className="ml-2 text-xs text-gray-300">· {menu.menuLocation}</span>

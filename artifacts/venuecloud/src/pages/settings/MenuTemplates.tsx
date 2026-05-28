@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { formatPricingType } from "@/lib/formatters";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -696,7 +697,7 @@ export default function MenuTemplates() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {t.category && <span>{t.category}</span>}
                     {t.category && t.pricingType && <span className="text-gray-300">·</span>}
-                    {t.pricingType && <span className="truncate">{t.pricingType}</span>}
+                    {t.pricingType && <span className="truncate">{formatPricingType(t.pricingType)}</span>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {t.packagePrice != null && (

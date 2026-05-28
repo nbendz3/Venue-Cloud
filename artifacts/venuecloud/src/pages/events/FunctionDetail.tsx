@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatPricingType } from "@/lib/formatters";
 import { useParams, Link, useLocation } from "wouter";
 import { useGetEvent, useListEventFunctions, useGetFunction, useGetFunctionMenus } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -358,8 +359,7 @@ export default function FunctionDetail() {
                               <TableCell className="font-medium text-sm">{menu.functionMenuName}</TableCell>
                               <TableCell>
                                 <Badge variant="secondary" className="text-xs">
-                                  {menu.pricingType === "A La Carte Pricing" ? "A La Carte" :
-                                   menu.pricingType?.includes("Package") ? "Package" : menu.pricingType ?? "—"}
+                                  {formatPricingType(menu.pricingType)}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { formatPricingType } from "@/lib/formatters";
 import { useParams, Link, useLocation } from "wouter";
 import {
   useGetEvent,
@@ -1397,7 +1398,7 @@ function MenuBlock({
             <div className="font-semibold truncate">{menu.functionMenuName}</div>
             <div className="text-xs text-muted-foreground">
               MNU-{String(menu.id).padStart(3, "0")}
-              {menu.pricingType ? ` · ${menu.pricingType}` : ""}
+              {menu.pricingType ? ` · ${formatPricingType(menu.pricingType)}` : ""}
               {" · Total: "}
               <span className="font-medium text-foreground">{fmt(menuTotal)}</span>
             </div>
@@ -1929,7 +1930,7 @@ function AddMenuDialog({
                           </TableCell>
                           <TableCell className="font-medium">{t.name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{t.menuNumber ?? "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{t.pricingType ?? "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatPricingType(t.pricingType)}</TableCell>
                           <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
                         </TableRow>
                       ))}
