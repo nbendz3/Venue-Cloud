@@ -9,6 +9,7 @@ export const menuTemplateItemsTable = pgTable("menu_template_items", {
   quantity: numeric("quantity", { precision: 10, scale: 2 }).default("1"),
   priceOverride: numeric("price_override", { precision: 12, scale: 2 }),
   notes: text("notes"),
+  sectionName: text("section_name"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

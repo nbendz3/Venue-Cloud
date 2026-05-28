@@ -5,6 +5,8 @@ import {
   serviceTypesTable,
   serviceItemsTable,
   menuTemplatesTable,
+  menuTemplateItemsTable,
+  catalogItemsTable,
   revenueCentersTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -116,7 +118,55 @@ router.post("/:id/add-menu-template", async (req, res) => {
       })
       .returning();
 
-    res.status(201).json({ ...menu, serviceTypes: [] });
+    // Copy template items into a service type, preserving sectionName
+    const templateItems = await db
+      .select({
+        catalogItemId: menuTemplateItemsTable.catalogItemId,
+        quantity: menuTemplateItemsTable.quantity,
+        priceOverride: menuTemplateItemsTable.priceOverride,
+        notes: menuTemplateItemsTable.notes,
+        sectionName: menuTemplateItemsTable.sectionName,
+        sortOrder: menuTemplateItemsTable.sortOrder,
+        itemName: catalogItemsTable.name,
+        catalogPrice: catalogItemsTable.price,
+        revenueCenterId: catalogItemsTable.revenueCenterId,
+      })
+      .from(menuTemplateItemsTable)
+      .leftJoin(catalogItemsTable, eq(menuTemplateItemsTable.catalogItemId, catalogItemsTable.id))
+      .where(eq(menuTemplateItemsTable.templateId, templateId))
+      .orderBy(menuTemplateItemsTable.sortOrder, menuTemplateItemsTable.id);
+
+    let serviceTypes: any[] = [];
+    if (templateItems.length > 0) {
+      const [st] = await db
+        .insert(serviceTypesTable)
+        .values({ functionMenuId: menu.id, serviceTypeName: template.name, displayOrder: 0 })
+        .returning();
+
+      const insertedItems = [];
+      for (const ti of templateItems) {
+        const price = ti.priceOverride ?? ti.catalogPrice ?? null;
+        const qty = ti.quantity ?? "1";
+        const itemTotal = price ? (parseFloat(qty) * parseFloat(price)).toFixed(2) : null;
+        const [newItem] = await db
+          .insert(serviceItemsTable)
+          .values({
+            serviceTypeId: st.id,
+            itemName: ti.itemName ?? "Item",
+            notes: ti.notes,
+            quantity: qty,
+            aLaCartePrice: price,
+            revenueCenterId: ti.revenueCenterId,
+            sectionName: ti.sectionName,
+            itemTotal,
+          })
+          .returning();
+        insertedItems.push(newItem);
+      }
+      serviceTypes = [{ ...st, items: insertedItems }];
+    }
+
+    res.status(201).json({ ...menu, serviceTypes });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -207,6 +257,7 @@ router.post("/:id/menus/:menuId/copy", async (req, res) => {
             cost: item.cost,
             category: item.category,
             appliedRates: item.appliedRates,
+            sectionName: item.sectionName,
             revenueCenterId: item.revenueCenterId,
           })
           .returning();

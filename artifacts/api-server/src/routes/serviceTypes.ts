@@ -71,6 +71,7 @@ router.get("/:id/items", async (req, res) => {
         numHours: serviceItemsTable.numHours,
         revenueCenterId: serviceItemsTable.revenueCenterId,
         appliedRates: serviceItemsTable.appliedRates,
+        sectionName: serviceItemsTable.sectionName,
         itemTotal: serviceItemsTable.itemTotal,
         revenueCenterName: revenueCentersTable.name,
       })
@@ -94,7 +95,7 @@ router.post("/:id/items", async (req, res) => {
     const {
       itemName, description, notes, quantity, autoQuantity,
       aLaCartePrice, addOnPrice, cost, revenueCenterId, appliedRates, category,
-      chargeHourly, numHours, numberRequired, perNumberOfGuests,
+      chargeHourly, numHours, numberRequired, perNumberOfGuests, sectionName,
     } = req.body;
 
     // Calculate item total
@@ -118,6 +119,7 @@ router.post("/:id/items", async (req, res) => {
         revenueCenterId,
         appliedRates,
         category,
+        sectionName: sectionName || null,
         chargeHourly,
         numHours: numHours?.toString(),
         numberRequired,

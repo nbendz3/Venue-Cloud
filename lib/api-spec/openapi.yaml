@@ -2025,6 +2025,8 @@ paths:
                   type: string
                 category:
                   type: string
+                sectionName:
+                  type: string
               required:
                 - itemName
       responses:
@@ -2077,6 +2079,8 @@ paths:
                   type: boolean
                 numHours:
                   type: number
+                sectionName:
+                  type: string
       responses:
         "200":
           description: Updated
@@ -3847,6 +3851,8 @@ components:
           type: ["string", "null"]
         categoryName:
           type: ["string", "null"]
+        sectionName:
+          type: ["string", "null"]
       required: [id, templateId, catalogItemId, createdAt]
 
     MenuTemplateItemInput:
@@ -3862,6 +3868,8 @@ components:
           type: string
         sortOrder:
           type: integer
+        sectionName:
+          type: string
       required: [catalogItemId]
 
     ServiceItem:
@@ -3914,6 +3922,8 @@ components:
         itemTotal:
           type: ["string", "null"]
         revenueCenterName:
+          type: ["string", "null"]
+        sectionName:
           type: ["string", "null"]
       required:
         - id

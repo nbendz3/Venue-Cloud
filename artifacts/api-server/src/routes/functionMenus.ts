@@ -51,6 +51,7 @@ router.get("/:id", async (req, res) => {
             numHours: serviceItemsTable.numHours,
             revenueCenterId: serviceItemsTable.revenueCenterId,
             appliedRates: serviceItemsTable.appliedRates,
+            sectionName: serviceItemsTable.sectionName,
             itemTotal: serviceItemsTable.itemTotal,
             revenueCenterName: revenueCentersTable.name,
           })

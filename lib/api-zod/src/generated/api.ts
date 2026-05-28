@@ -2196,7 +2196,8 @@ export const GetFunctionMenusResponseItem = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })).optional()
 })).optional()
 })
@@ -2290,7 +2291,8 @@ export const GetFunctionMenuResponse = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })).optional()
 })).optional()
 })
@@ -2366,7 +2368,8 @@ export const UpdateFunctionMenuResponse = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })).optional()
 })).optional()
 })
@@ -2425,7 +2428,8 @@ export const GetServiceTypesResponseItem = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })).optional()
 })
 export const GetServiceTypesResponse = zod.array(GetServiceTypesResponseItem)
@@ -2498,7 +2502,8 @@ export const UpdateServiceTypeResponse = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })).optional()
 })
 
@@ -2542,7 +2547,8 @@ export const GetServiceItemsResponseItem = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })
 export const GetServiceItemsResponse = zod.array(GetServiceItemsResponseItem)
 
@@ -2564,7 +2570,8 @@ export const CreateServiceItemBody = zod.object({
   "cost": zod.number().optional(),
   "revenueCenterId": zod.number().optional(),
   "appliedRates": zod.string().optional(),
-  "category": zod.string().optional()
+  "category": zod.string().optional(),
+  "sectionName": zod.string().optional()
 })
 
 
@@ -2587,7 +2594,8 @@ export const UpdateServiceItemBody = zod.object({
   "appliedRates": zod.string().optional(),
   "category": zod.string().optional(),
   "chargeHourly": zod.boolean().optional(),
-  "numHours": zod.number().optional()
+  "numHours": zod.number().optional(),
+  "sectionName": zod.string().optional()
 })
 
 export const UpdateServiceItemResponse = zod.object({
@@ -2614,7 +2622,8 @@ export const UpdateServiceItemResponse = zod.object({
   "revenueCenterId": zod.number().nullish(),
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
-  "revenueCenterName": zod.string().nullish()
+  "revenueCenterName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })
 
 
@@ -2708,7 +2717,8 @@ export const GetMenuTemplateResponse = zod.object({
   "catalogItemDescription": zod.string().nullish(),
   "catalogItemUnit": zod.string().nullish(),
   "catalogItemPrice": zod.string().nullish(),
-  "categoryName": zod.string().nullish()
+  "categoryName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 }))
 })
 
@@ -2781,7 +2791,8 @@ export const ListMenuTemplateItemsResponseItem = zod.object({
   "catalogItemDescription": zod.string().nullish(),
   "catalogItemUnit": zod.string().nullish(),
   "catalogItemPrice": zod.string().nullish(),
-  "categoryName": zod.string().nullish()
+  "categoryName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })
 export const ListMenuTemplateItemsResponse = zod.array(ListMenuTemplateItemsResponseItem)
 
@@ -2798,7 +2809,8 @@ export const AddMenuTemplateItemBody = zod.object({
   "quantity": zod.string().optional(),
   "priceOverride": zod.string().optional(),
   "notes": zod.string().optional(),
-  "sortOrder": zod.number().optional()
+  "sortOrder": zod.number().optional(),
+  "sectionName": zod.string().optional()
 })
 
 
@@ -2815,7 +2827,8 @@ export const UpdateMenuTemplateItemBody = zod.object({
   "quantity": zod.string().optional(),
   "priceOverride": zod.string().optional(),
   "notes": zod.string().optional(),
-  "sortOrder": zod.number().optional()
+  "sortOrder": zod.number().optional(),
+  "sectionName": zod.string().optional()
 })
 
 export const UpdateMenuTemplateItemResponse = zod.object({
@@ -2831,7 +2844,8 @@ export const UpdateMenuTemplateItemResponse = zod.object({
   "catalogItemDescription": zod.string().nullish(),
   "catalogItemUnit": zod.string().nullish(),
   "catalogItemPrice": zod.string().nullish(),
-  "categoryName": zod.string().nullish()
+  "categoryName": zod.string().nullish(),
+  "sectionName": zod.string().nullish()
 })
 
 

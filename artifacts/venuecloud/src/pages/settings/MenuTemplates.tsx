@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -131,13 +131,14 @@ function ItemPickerModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onAdd: (catalogItemId: number, qty: string, notes: string) => Promise<void>;
+  onAdd: (catalogItemId: number, qty: string, notes: string, sectionName: string) => Promise<void>;
   excludeIds: number[];
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
   const [qty, setQty] = useState("1");
   const [notes, setNotes] = useState("");
+  const [sectionName, setSectionName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const { data: items = [] } = useListCatalogItems({ isActive: true });
@@ -150,13 +151,13 @@ function ItemPickerModal({
   });
 
   useEffect(() => {
-    if (open) { setSearch(""); setSelected(null); setQty("1"); setNotes(""); }
+    if (open) { setSearch(""); setSelected(null); setQty("1"); setNotes(""); setSectionName(""); }
   }, [open]);
 
   async function handleAdd() {
     if (!selected) return;
     setSaving(true);
-    try { await onAdd(selected, qty, notes); onClose(); }
+    try { await onAdd(selected, qty, notes, sectionName); onClose(); }
     finally { setSaving(false); }
   }
 
@@ -217,10 +218,14 @@ function ItemPickerModal({
         </div>
 
         {selected && (
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t">
             <div className="space-y-1">
               <Label className="text-sm">Quantity</Label>
               <Input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="1" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">Section / Course <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="e.g. First Course, Setup…" />
             </div>
             <div className="space-y-1 col-span-2">
               <Label className="text-sm">Notes (optional)</Label>
@@ -290,10 +295,10 @@ function TemplateBuilder({
     setDirty(false);
   }
 
-  async function handleAddItem(catalogItemId: number, qty: string, notes: string) {
+  async function handleAddItem(catalogItemId: number, qty: string, notes: string, sectionName: string) {
     await addItemMutation.mutateAsync({
       id: templateId,
-      data: { catalogItemId, quantity: qty || "1", notes: notes || undefined },
+      data: { catalogItemId, quantity: qty || "1", notes: notes || undefined, sectionName: sectionName || undefined },
     });
     queryClient.invalidateQueries({ queryKey: getGetMenuTemplateQueryKey(templateId) });
   }
@@ -424,38 +429,56 @@ function TemplateBuilder({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item: any) => (
-                    <TableRow key={item.id} className="group">
-                      <TableCell className="text-muted-foreground/30">
-                        <GripVertical className="h-3.5 w-3.5" />
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-sm">{item.catalogItemName ?? "—"}</div>
-                        {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-mono">
-                        {item.quantity != null ? parseFloat(item.quantity) : 1}
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-mono">
-                        {item.priceOverride != null
-                          ? <span className="text-amber-700">${parseFloat(item.priceOverride).toFixed(2)}</span>
-                          : item.catalogItemPrice != null
-                            ? `$${parseFloat(item.catalogItemPrice).toFixed(2)}`
-                            : "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.catalogItemUnit ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600"
-                          onClick={() => handleRemoveItem(item.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    const rows: React.ReactNode[] = [];
+                    let lastSection: string | null = null;
+                    items.forEach((item: any) => {
+                      const sec: string | null = item.sectionName ?? null;
+                      if (sec !== null && sec !== lastSection) {
+                        rows.push(
+                          <TableRow key={`sec-${sec}`} className="bg-teal-50 border-y border-teal-100 hover:bg-teal-50">
+                            <TableCell colSpan={6} className="py-1.5 px-4">
+                              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">{sec}</span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                      lastSection = sec;
+                      rows.push(
+                        <TableRow key={item.id} className="group">
+                          <TableCell className="text-muted-foreground/30">
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm">{item.catalogItemName ?? "—"}</div>
+                            {item.notes && <div className="text-xs text-muted-foreground">{item.notes}</div>}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-mono">
+                            {item.quantity != null ? parseFloat(item.quantity) : 1}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-mono">
+                            {item.priceOverride != null
+                              ? <span className="text-amber-700">${parseFloat(item.priceOverride).toFixed(2)}</span>
+                              : item.catalogItemPrice != null
+                                ? `$${parseFloat(item.catalogItemPrice).toFixed(2)}`
+                                : "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {item.catalogItemUnit ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            <button
+                              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600"
+                              onClick={() => handleRemoveItem(item.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                    return rows;
+                  })()}
                 </TableBody>
               </Table>
             </div>

@@ -37,6 +37,7 @@ export const serviceItemsTable = pgTable("service_items", {
   hoursPrecision: text("hours_precision").default("Whole"),
   revenueCenterId: integer("revenue_center_id"),
   appliedRates: text("applied_rates"),
+  sectionName: text("section_name"),
   itemTotal: numeric("item_total", { precision: 12, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

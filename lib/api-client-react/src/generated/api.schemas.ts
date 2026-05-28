@@ -840,6 +840,8 @@ export interface MenuTemplateItem {
   catalogItemPrice?: string | null;
   /** @nullable */
   categoryName?: string | null;
+  /** @nullable */
+  sectionName?: string | null;
 }
 
 export interface MenuTemplateDetail {
@@ -890,6 +892,7 @@ export interface MenuTemplateItemInput {
   priceOverride?: string;
   notes?: string;
   sortOrder?: number;
+  sectionName?: string;
 }
 
 export interface ServiceItem {
@@ -938,6 +941,8 @@ export interface ServiceItem {
   itemTotal?: string | null;
   /** @nullable */
   revenueCenterName?: string | null;
+  /** @nullable */
+  sectionName?: string | null;
 }
 
 export interface ServiceType {
@@ -1543,6 +1548,7 @@ export type CreateServiceItemBody = {
   revenueCenterId?: number;
   appliedRates?: string;
   category?: string;
+  sectionName?: string;
 };
 
 export type UpdateServiceItemBody = {
@@ -1558,6 +1564,7 @@ export type UpdateServiceItemBody = {
   category?: string;
   chargeHourly?: boolean;
   numHours?: number;
+  sectionName?: string;
 };
 
 export type GetMenuTemplatesParams = {

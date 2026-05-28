@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import {
   useGetEvent,
@@ -1187,6 +1187,7 @@ function MenuBlock({
     quantity: "1",
     unitPrice: "",
     revenueCenterId: "",
+    sectionName: "",
   });
 
   const [menuForm, setMenuForm] = useState({
@@ -1200,6 +1201,7 @@ function MenuBlock({
     unitPrice: "",
     revenueCenterId: "",
     notes: "",
+    sectionName: "",
   });
 
   const qc = useQueryClient();
@@ -1319,11 +1321,12 @@ function MenuBlock({
           quantity: itemForm.quantity ? parseFloat(itemForm.quantity) : undefined,
           aLaCartePrice: itemForm.unitPrice ? parseFloat(itemForm.unitPrice) : undefined,
           revenueCenterId: itemForm.revenueCenterId ? parseInt(itemForm.revenueCenterId) : undefined,
+          sectionName: itemForm.sectionName || undefined,
         },
       });
       invalidate();
       setAddItemOpen(false);
-      setItemForm({ itemName: "", serviceTypeName: SERVICE_ITEM_CATEGORIES[0], quantity: "1", unitPrice: "", revenueCenterId: "" });
+      setItemForm({ itemName: "", serviceTypeName: SERVICE_ITEM_CATEGORIES[0], quantity: "1", unitPrice: "", revenueCenterId: "", sectionName: "" });
       toast({ title: "Item added" });
     } catch {
       toast({ title: "Failed to add item", variant: "destructive" });
@@ -1340,6 +1343,7 @@ function MenuBlock({
       unitPrice: item.aLaCartePrice ?? "",
       revenueCenterId: item.revenueCenterId ? String(item.revenueCenterId) : "",
       notes: item.notes ?? "",
+      sectionName: item.sectionName ?? "",
     });
   };
 
@@ -1354,6 +1358,7 @@ function MenuBlock({
           aLaCartePrice: editForm.unitPrice ? parseFloat(editForm.unitPrice) : undefined,
           revenueCenterId: editForm.revenueCenterId ? parseInt(editForm.revenueCenterId) : undefined,
           notes: editForm.notes || undefined,
+          sectionName: editForm.sectionName || undefined,
         },
       },
       {
@@ -1447,51 +1452,67 @@ function MenuBlock({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allItems.map((item) => {
-                    const qty = parseFloat(item.quantity ?? "1") || 1;
-                    const price = parseFloat(item.aLaCartePrice ?? "0") || 0;
-                    const stored = parseFloat(item.itemTotal ?? "0") || 0;
-                    const total = stored > 0 ? stored : price * qty;
-                    return (
-                      <TableRow key={item.id} className="text-sm">
-                        <TableCell className="font-medium">
-                          {item.itemName}
-                          {item.notes && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[220px]">{item.notes}</div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap">
-                            {item.serviceTypeName}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{item.quantity ?? "1"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmt(item.aLaCartePrice)}</TableCell>
-                        <TableCell className="text-right tabular-nums font-medium">
-                          {price === 0 && stored === 0 ? "—" : fmt(total)}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{item.revenueCenterName ?? "—"}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <button
-                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                              onClick={() => openEditItem(item)}
-                              title="Edit"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
-                              onClick={() => handleDeleteItem(item.id)}
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {(() => {
+                    const rows: React.ReactNode[] = [];
+                    let lastSection: string | null = undefined as unknown as string | null;
+                    allItems.forEach((item) => {
+                      const sec: string | null = item.sectionName ?? null;
+                      if (sec !== null && sec !== lastSection) {
+                        rows.push(
+                          <TableRow key={`sec-${menu.id}-${sec}`} className="bg-teal-50 border-y border-teal-100 hover:bg-teal-50">
+                            <TableCell colSpan={7} className="py-1.5 px-4">
+                              <span className="text-xs font-semibold text-teal-700 uppercase tracking-wide">{sec}</span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+                      lastSection = sec;
+                      const qty = parseFloat(item.quantity ?? "1") || 1;
+                      const price = parseFloat(item.aLaCartePrice ?? "0") || 0;
+                      const stored = parseFloat(item.itemTotal ?? "0") || 0;
+                      const total = stored > 0 ? stored : price * qty;
+                      rows.push(
+                        <TableRow key={item.id} className="text-sm">
+                          <TableCell className="font-medium">
+                            {item.itemName}
+                            {item.notes && (
+                              <div className="text-xs text-muted-foreground truncate max-w-[220px]">{item.notes}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap">
+                              {item.serviceTypeName}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{item.quantity ?? "1"}</TableCell>
+                          <TableCell className="text-right tabular-nums">{fmt(item.aLaCartePrice)}</TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">
+                            {price === 0 && stored === 0 ? "—" : fmt(total)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{item.revenueCenterName ?? "—"}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <button
+                                className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => openEditItem(item)}
+                                title="Edit"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"
+                                onClick={() => handleDeleteItem(item.id)}
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    });
+                    return rows;
+                  })()}
                 </TableBody>
               </Table>
             </div>
@@ -1561,6 +1582,14 @@ function MenuBlock({
                     onChange={(e) => setItemForm((f) => ({ ...f, unitPrice: e.target.value }))}
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Section / Course <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  placeholder="e.g. Reception, First Course…"
+                  value={itemForm.sectionName}
+                  onChange={(e) => setItemForm((f) => ({ ...f, sectionName: e.target.value }))}
+                />
               </div>
               <div>
                 <Label className="text-xs mb-1.5 block">Revenue Center</Label>
@@ -1638,6 +1667,14 @@ function MenuBlock({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label className="text-xs mb-1.5 block">Section / Course <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  placeholder="e.g. Reception, First Course…"
+                  value={editForm.sectionName}
+                  onChange={(e) => setEditForm((f) => ({ ...f, sectionName: e.target.value }))}
+                />
               </div>
               <div>
                 <Label className="text-xs mb-1.5 block">Notes</Label>
