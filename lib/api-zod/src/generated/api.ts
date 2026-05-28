@@ -2601,7 +2601,8 @@ export const UpdateServiceItemBody = zod.object({
   "category": zod.string().optional(),
   "chargeHourly": zod.boolean().optional(),
   "numHours": zod.number().optional(),
-  "sectionName": zod.string().optional()
+  "sectionName": zod.string().optional(),
+  "selected": zod.boolean().optional()
 })
 
 export const UpdateServiceItemResponse = zod.object({

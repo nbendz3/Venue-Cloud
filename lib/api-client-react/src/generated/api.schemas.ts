@@ -1567,6 +1567,7 @@ export type UpdateServiceItemBody = {
   chargeHourly?: boolean;
   numHours?: number;
   sectionName?: string;
+  selected?: boolean;
 };
 
 export type GetMenuTemplatesParams = {

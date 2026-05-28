@@ -1215,6 +1215,8 @@ function MenuBlock({
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [inlineEdit, setInlineEdit] = useState<{ itemId: number; field: "qty" | "price"; value: string } | null>(null);
+  // Optimistic selected state: itemId → boolean (overrides server value until refetch)
+  const [optimisticSelected, setOptimisticSelected] = useState<Map<number, boolean>>(new Map());
 
   const [itemForm, setItemForm] = useState({
     itemName: "",
@@ -1327,8 +1329,14 @@ function MenuBlock({
     }))
   );
 
+  // Resolve effective selected state for an item (optimistic overrides server value)
+  const effectiveSelected = (item: any): boolean =>
+    optimisticSelected.has(item.id)
+      ? (optimisticSelected.get(item.id) ?? false)
+      : (item.selected ?? false);
+
   const menuTotal = allItems.reduce((sum, i) => {
-    if (!i.selected) return sum;
+    if (!effectiveSelected(i)) return sum;
     const stored = parseFloat(i.itemTotal ?? "0") || 0;
     if (stored > 0) return sum + stored;
     const qty = parseFloat(i.quantity ?? "1") || 1;
@@ -1336,13 +1344,34 @@ function MenuBlock({
     return sum + price * qty;
   }, 0);
 
-  const selectedCount = allItems.filter((i) => i.selected).length;
+  const selectedCount = allItems.filter(effectiveSelected).length;
 
   const toggleSelected = (item: any) => {
-    updateItem.mutate(
-      { id: item.id, data: { selected: !item.selected } as any },
-      { onSuccess: () => invalidate() }
-    );
+    const newVal = !((optimisticSelected.has(item.id) ? optimisticSelected.get(item.id) : item.selected) ?? false);
+    // Apply optimistically immediately
+    setOptimisticSelected((prev) => new Map(prev).set(item.id, newVal));
+    // Persist to server
+    fetch(`/api/service-items/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selected: newVal }),
+    }).then(() => {
+      invalidate();
+      // After server confirms + cache refreshed, clear optimistic entry
+      setOptimisticSelected((prev) => {
+        const next = new Map(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }).catch(() => {
+      // Roll back on failure
+      setOptimisticSelected((prev) => {
+        const next = new Map(prev);
+        next.delete(item.id);
+        return next;
+      });
+      toast({ title: "Failed to update item", variant: "destructive" });
+    });
   };
 
   const saveInlineEdit = () => {
@@ -1526,7 +1555,7 @@ function MenuBlock({
                   {(() => {
                     const rows: React.ReactNode[] = [];
                     let lastSection: string | null = undefined as unknown as string | null;
-                    const visibleItems = showUnselected ? allItems : allItems.filter((i) => i.selected);
+                    const visibleItems = showUnselected ? allItems : allItems.filter(effectiveSelected);
                     visibleItems.forEach((item) => {
                       const sec: string | null = item.sectionName ?? null;
                       if (sec !== null && sec !== lastSection) {
@@ -1540,7 +1569,7 @@ function MenuBlock({
                       }
                       lastSection = sec;
 
-                      const isSelected = !!item.selected;
+                      const isSelected = effectiveSelected(item);
                       const qty = parseFloat(item.quantity ?? "1") || 1;
                       const price = parseFloat(item.aLaCartePrice ?? "0") || 0;
                       const stored = parseFloat(item.itemTotal ?? "0") || 0;

@@ -2081,6 +2081,8 @@ paths:
                   type: number
                 sectionName:
                   type: string
+                selected:
+                  type: boolean
       responses:
         "200":
           description: Updated
