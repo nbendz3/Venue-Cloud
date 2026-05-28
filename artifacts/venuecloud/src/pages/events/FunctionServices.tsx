@@ -965,13 +965,15 @@ function ItemLibraryPicker({
   open: boolean;
   onClose: () => void;
   onAddCustom: () => void;
-  onConfirm: (items: Array<{ catalogItem: any; qty: string; categoryName: string }>) => Promise<void>;
+  onConfirm: (items: Array<{ catalogItem: any; qty: string; categoryName: string; sectionName: string; notes: string }>) => Promise<void>;
   guestCount: number;
 }) {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("_all_");
   const [selected, setSelected] = useState<number[]>([]);
   const [qty, setQty] = useState(String(guestCount || 1));
+  const [sectionName, setSectionName] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const { data: items = [] } = useListCatalogItems({ isActive: true });
@@ -988,6 +990,8 @@ function ItemLibraryPicker({
       setCategoryFilter("_all_");
       setSelected([]);
       setQty(String(guestCount || 1));
+      setSectionName("");
+      setNotes("");
     }
   }, [open, guestCount]);
 
@@ -1009,7 +1013,7 @@ function ItemLibraryPicker({
         const item = (items as any[]).find((i) => i.id === id)!;
         const categoryName =
           item.categoryId != null ? (categoryMap[item.categoryId] ?? "Miscellaneous") : "Miscellaneous";
-        return { catalogItem: item, qty, categoryName };
+        return { catalogItem: item, qty, categoryName, sectionName, notes };
       });
       await onConfirm(toAdd);
       onClose();
@@ -1023,6 +1027,9 @@ function ItemLibraryPicker({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Add Item from Library</DialogTitle>
+          <p className="text-sm text-muted-foreground pt-0.5">
+            Select one or more items — name, price, and service type are pre-filled from the catalog.
+          </p>
         </DialogHeader>
 
         <div className="flex gap-2 mb-3">
@@ -1033,6 +1040,7 @@ function ItemLibraryPicker({
               placeholder="Search items…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoFocus
             />
             {search && (
               <button
@@ -1058,13 +1066,13 @@ function ItemLibraryPicker({
           </Select>
         </div>
 
-        <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 text-xs">
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Item</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Service Type</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead>Unit</TableHead>
               </TableRow>
@@ -1118,19 +1126,42 @@ function ItemLibraryPicker({
         </div>
 
         {selected.length > 0 && (
-          <div className="flex items-center gap-3 pt-2 border-t">
-            <Label className="text-sm whitespace-nowrap">Quantity per item</Label>
-            <Input
-              className="w-24 h-8 text-sm"
-              type="number"
-              min="0"
-              step="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
-            <span className="text-xs text-muted-foreground">
-              {selected.length} item{selected.length !== 1 ? "s" : ""} selected
-            </span>
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+            <div className="space-y-1">
+              <Label className="text-sm">Quantity</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">
+                Section / Course{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                value={sectionName}
+                onChange={(e) => setSectionName(e.target.value)}
+                placeholder="e.g. First Course, Setup…"
+              />
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label className="text-sm">
+                Notes{" "}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any special notes for these items"
+              />
+            </div>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              {selected.length} item{selected.length !== 1 ? "s" : ""} selected — quantity, section, and notes apply to all.
+            </p>
           </div>
         )}
 
@@ -1217,9 +1248,9 @@ function MenuBlock({
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
 
   const handleAddFromLibrary = async (
-    toAdd: Array<{ catalogItem: any; qty: string; categoryName: string }>
+    toAdd: Array<{ catalogItem: any; qty: string; categoryName: string; sectionName: string; notes: string }>
   ) => {
-    for (const { catalogItem, qty, categoryName } of toAdd) {
+    for (const { catalogItem, qty, categoryName, sectionName, notes } of toAdd) {
       let serviceTypeId: number;
       const existing = (menu.serviceTypes ?? []).find(
         (st: any) => st.serviceTypeName.toLowerCase() === categoryName.toLowerCase()
@@ -1240,6 +1271,8 @@ function MenuBlock({
           quantity: qty ? parseFloat(qty) : 1,
           aLaCartePrice: catalogItem.price ? parseFloat(catalogItem.price) : undefined,
           revenueCenterId: catalogItem.revenueCenterId ?? undefined,
+          sectionName: sectionName || undefined,
+          notes: notes || undefined,
         },
       });
     }
