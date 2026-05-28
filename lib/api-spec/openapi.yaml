@@ -3925,6 +3925,8 @@ components:
           type: ["string", "null"]
         sectionName:
           type: ["string", "null"]
+        selected:
+          type: ["boolean", "null"]
       required:
         - id
         - serviceTypeId

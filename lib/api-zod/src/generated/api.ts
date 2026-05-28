@@ -2197,7 +2197,8 @@ export const GetFunctionMenusResponseItem = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })).optional()
 })).optional()
 })
@@ -2292,7 +2293,8 @@ export const GetFunctionMenuResponse = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })).optional()
 })).optional()
 })
@@ -2369,7 +2371,8 @@ export const UpdateFunctionMenuResponse = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })).optional()
 })).optional()
 })
@@ -2429,7 +2432,8 @@ export const GetServiceTypesResponseItem = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })).optional()
 })
 export const GetServiceTypesResponse = zod.array(GetServiceTypesResponseItem)
@@ -2503,7 +2507,8 @@ export const UpdateServiceTypeResponse = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })).optional()
 })
 
@@ -2548,7 +2553,8 @@ export const GetServiceItemsResponseItem = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })
 export const GetServiceItemsResponse = zod.array(GetServiceItemsResponseItem)
 
@@ -2623,7 +2629,8 @@ export const UpdateServiceItemResponse = zod.object({
   "appliedRates": zod.string().nullish(),
   "itemTotal": zod.string().nullish(),
   "revenueCenterName": zod.string().nullish(),
-  "sectionName": zod.string().nullish()
+  "sectionName": zod.string().nullish(),
+  "selected": zod.boolean().nullish()
 })
 
 

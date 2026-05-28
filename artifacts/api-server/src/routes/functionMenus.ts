@@ -52,6 +52,7 @@ router.get("/:id", async (req, res) => {
             revenueCenterId: serviceItemsTable.revenueCenterId,
             appliedRates: serviceItemsTable.appliedRates,
             sectionName: serviceItemsTable.sectionName,
+            selected: serviceItemsTable.selected,
             itemTotal: serviceItemsTable.itemTotal,
             revenueCenterName: revenueCentersTable.name,
           })

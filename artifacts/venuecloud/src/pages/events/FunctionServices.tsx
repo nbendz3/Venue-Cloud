@@ -57,6 +57,7 @@ import {
   Search,
   X,
   Printer,
+  Check,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -1207,11 +1208,13 @@ function MenuBlock({
   guestCount: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showUnselected, setShowUnselected] = useState(true);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [inlineEdit, setInlineEdit] = useState<{ itemId: number; field: "qty" | "price"; value: string } | null>(null);
 
   const [itemForm, setItemForm] = useState({
     itemName: "",
@@ -1273,7 +1276,8 @@ function MenuBlock({
           revenueCenterId: catalogItem.revenueCenterId ?? undefined,
           sectionName: sectionName || undefined,
           notes: notes || undefined,
-        },
+          selected: true,
+        } as any,
       });
     }
     invalidate();
@@ -1324,12 +1328,34 @@ function MenuBlock({
   );
 
   const menuTotal = allItems.reduce((sum, i) => {
+    if (!i.selected) return sum;
     const stored = parseFloat(i.itemTotal ?? "0") || 0;
     if (stored > 0) return sum + stored;
     const qty = parseFloat(i.quantity ?? "1") || 1;
     const price = parseFloat(i.aLaCartePrice ?? "0") || 0;
     return sum + price * qty;
   }, 0);
+
+  const selectedCount = allItems.filter((i) => i.selected).length;
+
+  const toggleSelected = (item: any) => {
+    updateItem.mutate(
+      { id: item.id, data: { selected: !item.selected } as any },
+      { onSuccess: () => invalidate() }
+    );
+  };
+
+  const saveInlineEdit = () => {
+    if (!inlineEdit) return;
+    const patch: any =
+      inlineEdit.field === "qty"
+        ? { quantity: parseFloat(inlineEdit.value) || 1 }
+        : { aLaCartePrice: parseFloat(inlineEdit.value) || 0 };
+    updateItem.mutate(
+      { id: inlineEdit.itemId, data: patch },
+      { onSuccess: () => { invalidate(); setInlineEdit(null); } }
+    );
+  };
 
   const handleAddItem = async () => {
     if (!itemForm.itemName) return;
@@ -1356,7 +1382,8 @@ function MenuBlock({
           aLaCartePrice: itemForm.unitPrice ? parseFloat(itemForm.unitPrice) : undefined,
           revenueCenterId: itemForm.revenueCenterId ? parseInt(itemForm.revenueCenterId) : undefined,
           sectionName: itemForm.sectionName || undefined,
-        },
+          selected: true,
+        } as any,
       });
       invalidate();
       setAddItemOpen(false);
@@ -1438,6 +1465,16 @@ function MenuBlock({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {allItems.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8"
+              onClick={() => setShowUnselected((v) => !v)}
+            >
+              {showUnselected ? "Hide Unselected" : `Show Unselected (${allItems.length - selectedCount})`}
+            </Button>
+          )}
           <Button size="sm" onClick={() => setLibraryPickerOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
           </Button>
@@ -1476,12 +1513,12 @@ function MenuBlock({
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs bg-muted/40">
+                    <TableHead className="w-10"></TableHead>
                     <TableHead>Item</TableHead>
                     <TableHead>Service Type</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Revenue Ctr</TableHead>
+                    <TableHead className="text-right w-28">Qty</TableHead>
+                    <TableHead className="text-right w-28">Unit Price</TableHead>
+                    <TableHead className="text-right w-24">Total</TableHead>
                     <TableHead className="w-20"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1489,7 +1526,8 @@ function MenuBlock({
                   {(() => {
                     const rows: React.ReactNode[] = [];
                     let lastSection: string | null = undefined as unknown as string | null;
-                    allItems.forEach((item) => {
+                    const visibleItems = showUnselected ? allItems : allItems.filter((i) => i.selected);
+                    visibleItems.forEach((item) => {
                       const sec: string | null = item.sectionName ?? null;
                       if (sec !== null && sec !== lastSection) {
                         rows.push(
@@ -1501,29 +1539,104 @@ function MenuBlock({
                         );
                       }
                       lastSection = sec;
+
+                      const isSelected = !!item.selected;
                       const qty = parseFloat(item.quantity ?? "1") || 1;
                       const price = parseFloat(item.aLaCartePrice ?? "0") || 0;
                       const stored = parseFloat(item.itemTotal ?? "0") || 0;
                       const total = stored > 0 ? stored : price * qty;
+
+                      const editingQty = inlineEdit != null && inlineEdit.itemId === item.id && inlineEdit.field === "qty";
+                      const editingPrice = inlineEdit != null && inlineEdit.itemId === item.id && inlineEdit.field === "price";
+
                       rows.push(
-                        <TableRow key={item.id} className="text-sm">
-                          <TableCell className="font-medium">
+                        <TableRow
+                          key={item.id}
+                          className={`text-sm transition-opacity ${isSelected ? "" : "opacity-40"}`}
+                        >
+                          {/* Checkbox */}
+                          <TableCell className="pr-0">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelected(item)}
+                              aria-label="Select item"
+                            />
+                          </TableCell>
+
+                          {/* Name */}
+                          <TableCell className={isSelected ? "font-medium" : ""}>
                             {item.itemName}
                             {item.notes && (
                               <div className="text-xs text-muted-foreground truncate max-w-[220px]">{item.notes}</div>
                             )}
                           </TableCell>
+
+                          {/* Service Type */}
                           <TableCell>
                             <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap">
                               {item.serviceTypeName}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right tabular-nums">{item.quantity ?? "1"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmt(item.aLaCartePrice)}</TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">
-                            {price === 0 && stored === 0 ? "—" : fmt(total)}
+
+                          {/* Qty — inline editable */}
+                          <TableCell className="text-right">
+                            {editingQty ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <input
+                                  type="number"
+                                  className="w-16 text-right border rounded px-1.5 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                  value={inlineEdit!.value}
+                                  autoFocus
+                                  onChange={(e) => setInlineEdit((p) => p ? { ...p, value: e.target.value } : p)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") saveInlineEdit(); if (e.key === "Escape") setInlineEdit(null); }}
+                                />
+                                <button className="text-green-600 hover:text-green-700 p-0.5" onClick={saveInlineEdit} title="Confirm"><Check className="w-3.5 h-3.5" /></button>
+                                <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={() => setInlineEdit(null)} title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                              </div>
+                            ) : (
+                              <span
+                                className={`tabular-nums cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted ${isSelected ? "" : "pointer-events-none"}`}
+                                onClick={() => isSelected && setInlineEdit({ itemId: item.id, field: "qty", value: String(qty) })}
+                                title={isSelected ? "Click to edit" : undefined}
+                              >
+                                {item.quantity ?? "1"}
+                              </span>
+                            )}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{item.revenueCenterName ?? "—"}</TableCell>
+
+                          {/* Unit Price — inline editable */}
+                          <TableCell className="text-right">
+                            {editingPrice ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="w-20 text-right border rounded px-1.5 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                  value={inlineEdit!.value}
+                                  autoFocus
+                                  onChange={(e) => setInlineEdit((p) => p ? { ...p, value: e.target.value } : p)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") saveInlineEdit(); if (e.key === "Escape") setInlineEdit(null); }}
+                                />
+                                <button className="text-green-600 hover:text-green-700 p-0.5" onClick={saveInlineEdit} title="Confirm"><Check className="w-3.5 h-3.5" /></button>
+                                <button className="text-muted-foreground hover:text-foreground p-0.5" onClick={() => setInlineEdit(null)} title="Cancel"><X className="w-3.5 h-3.5" /></button>
+                              </div>
+                            ) : (
+                              <span
+                                className={`tabular-nums cursor-pointer rounded px-1.5 py-0.5 hover:bg-muted ${isSelected ? "" : "pointer-events-none"}`}
+                                onClick={() => isSelected && setInlineEdit({ itemId: item.id, field: "price", value: item.aLaCartePrice ?? "0" })}
+                                title={isSelected ? "Click to edit" : undefined}
+                              >
+                                {fmt(item.aLaCartePrice)}
+                              </span>
+                            )}
+                          </TableCell>
+
+                          {/* Total */}
+                          <TableCell className="text-right tabular-nums font-medium">
+                            {isSelected ? (price === 0 && stored === 0 ? "—" : fmt(total)) : "—"}
+                          </TableCell>
+
+                          {/* Actions */}
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <button
@@ -1549,6 +1662,16 @@ function MenuBlock({
                   })()}
                 </TableBody>
               </Table>
+              {!showUnselected && allItems.length - selectedCount > 0 && (
+                <div className="text-center py-2 border-t">
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                    onClick={() => setShowUnselected(true)}
+                  >
+                    Show {allItems.length - selectedCount} unselected item{allItems.length - selectedCount !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

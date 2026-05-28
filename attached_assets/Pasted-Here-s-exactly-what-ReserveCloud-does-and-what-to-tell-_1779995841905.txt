@@ -1,0 +1,25 @@
+Here's exactly what ReserveCloud does and what to tell Replit. Copy and paste this entire prompt:
+
+REPLIT PROMPT — Mirror ReserveCloud's Function Services Menu Item Selection
+
+The core change needed: Right now, when a menu is added to a BEO (Function Services page), it shows "No items yet" and staff must manually pick items from the full 306-item library. In ReserveCloud, the menu items from the template are pre-loaded directly into the menu on the BEO, and staff check/uncheck which ones apply to this specific event. We need to replicate that exact flow.
+How ReserveCloud works (mirror this exactly):
+
+When a menu template is added to a function, all items from that template are automatically pre-loaded into the function menu — they appear immediately inside the menu, organized by section/course. They are shown but are in an "unselected" (unchecked) state by default. No quantity is required yet.
+Each item row has a checkbox on the left. The item shows: checkbox | item name | Quantity field | Price field | Total. Items that are NOT yet checked/selected are shown in a muted/dimmed style. Items that ARE checked are shown normally (full opacity, bold name, editable quantity).
+Checking an item selects it — the row highlights, the quantity field becomes active/editable inline (right there on the row — not a popup). Staff type the quantity (e.g. 70), press Enter or click the checkmark ✓, and it saves. The price comes from the catalog and auto-calculates the total.
+"Show Unselected Items" toggle — By default after items have been selected, unselected items are hidden from view. There is a sidebar/menu option called "Show Unselected Items" that toggles their visibility back on so staff can go back and select more.
+The "+ Add Item" button remains for adding custom one-off items not in the template. It should open the existing library picker modal (the "Add Item from Library" dialog that currently works). This preserves the ability to add anything from the full catalog.
+Inline editing: Clicking the Quantity value or Price value on any selected item opens an inline text input right on the row (not a modal/popup). It shows ✓ and ✗ buttons to confirm or cancel.
+
+Technical implementation:
+When a menu is added to a function via POST /api/functions/[id]/menus using a template, the API should automatically copy all items from /api/menu-templates/[templateId]/items into the new function menu (creating records in the function menu items table). Each item should have a selected boolean field (default false) and a quantity field (default 1).
+The Function Services page should:
+
+Fetch function menu items via GET /api/function-menus/[menuId]/items and display all of them (both selected and unselected)
+Show a checkbox per item — PATCH /api/function-menu-items/[itemId] with { selected: true/false } when toggled
+Show an inline quantity input when clicked — PATCH /api/function-menu-items/[itemId] with { quantity: X } on confirm
+"Show Unselected Items" toggle in the page controls to filter visibility of unchecked items
+Keep the existing "+ Add Item" button which opens the library picker to add custom items (these are added as pre-selected)
+
+Do NOT break the existing "Add Menu from Template Library" dialog — just change what happens after a template menu is added (auto-populate its items into the BEO instead of starting empty).

@@ -943,6 +943,8 @@ export interface ServiceItem {
   revenueCenterName?: string | null;
   /** @nullable */
   sectionName?: string | null;
+  /** @nullable */
+  selected?: boolean | null;
 }
 
 export interface ServiceType {
