@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import {
   useGetEvent,
@@ -15,6 +15,8 @@ import {
   useDeleteServiceItem,
   useAddMenuTemplate,
   useGetRevenueCenters,
+  useListCatalogItems,
+  useGetCatalogItemsMeta,
 } from "@workspace/api-client-react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -950,18 +952,230 @@ function ServiceTypeBlock({
   );
 }
 
+// ─── Item Library Picker ──────────────────────────────────────────────────────
+
+function ItemLibraryPicker({
+  open,
+  onClose,
+  onAddCustom,
+  onConfirm,
+  guestCount,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAddCustom: () => void;
+  onConfirm: (items: Array<{ catalogItem: any; qty: string; categoryName: string }>) => Promise<void>;
+  guestCount: number;
+}) {
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("_all_");
+  const [selected, setSelected] = useState<number[]>([]);
+  const [qty, setQty] = useState(String(guestCount || 1));
+  const [saving, setSaving] = useState(false);
+
+  const { data: items = [] } = useListCatalogItems({ isActive: true });
+  const { data: meta } = useGetCatalogItemsMeta();
+
+  const categoryMap = useMemo(
+    () => Object.fromEntries((meta?.categories ?? []).map((c: any) => [c.id, c.name])),
+    [meta]
+  );
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      setCategoryFilter("_all_");
+      setSelected([]);
+      setQty(String(guestCount || 1));
+    }
+  }, [open, guestCount]);
+
+  const filtered = (items as any[]).filter((item) => {
+    if (categoryFilter !== "_all_" && String(item.categoryId) !== categoryFilter) return false;
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return item.name.toLowerCase().includes(s) || (item.description ?? "").toLowerCase().includes(s);
+  });
+
+  const toggle = (id: number) =>
+    setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  const handleConfirm = async () => {
+    if (selected.length === 0) return;
+    setSaving(true);
+    try {
+      const toAdd = selected.map((id) => {
+        const item = (items as any[]).find((i) => i.id === id)!;
+        const categoryName =
+          item.categoryId != null ? (categoryMap[item.categoryId] ?? "Miscellaneous") : "Miscellaneous";
+        return { catalogItem: item, qty, categoryName };
+      });
+      await onConfirm(toAdd);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Add Item from Library</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-2 mb-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9 h-8 text-sm"
+              placeholder="Search items…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setSearch("")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-44 h-8 text-sm">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all_">All Categories</SelectItem>
+              {(meta?.categories ?? []).map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 text-xs">
+                <TableHead className="w-8"></TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead>Unit</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">
+                    No items found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    className={`cursor-pointer text-sm ${
+                      selected.includes(item.id)
+                        ? "bg-primary/10 border-l-2 border-l-primary"
+                        : "hover:bg-muted/40"
+                    }`}
+                    onClick={() => toggle(item.id)}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.includes(item.id)}
+                        onCheckedChange={() => toggle(item.id)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{item.name}</div>
+                      {item.description && (
+                        <div className="text-xs text-muted-foreground truncate max-w-xs">
+                          {item.description}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {item.categoryId != null ? (categoryMap[item.categoryId] ?? "—") : "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {item.unit ?? "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {selected.length > 0 && (
+          <div className="flex items-center gap-3 pt-2 border-t">
+            <Label className="text-sm whitespace-nowrap">Quantity per item</Label>
+            <Input
+              className="w-24 h-8 text-sm"
+              type="number"
+              min="0"
+              step="1"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">
+              {selected.length} item{selected.length !== 1 ? "s" : ""} selected
+            </span>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mr-auto text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              onClose();
+              onAddCustom();
+            }}
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" /> Add Custom Item
+          </Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirm} disabled={selected.length === 0 || saving}>
+            {saving
+              ? "Adding…"
+              : `Add ${selected.length > 0 ? selected.length + " " : ""}Item${selected.length !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Menu Block ───────────────────────────────────────────────────────────────
+
 function MenuBlock({
   menu,
   functionId,
   eventId,
   allMenus,
+  guestCount,
 }: {
   menu: any;
   functionId: number;
   eventId: number;
   allMenus: any[];
+  guestCount: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
@@ -998,6 +1212,37 @@ function MenuBlock({
   const deleteItem = useDeleteServiceItem();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/functions/{id}/menus"] });
+
+  const handleAddFromLibrary = async (
+    toAdd: Array<{ catalogItem: any; qty: string; categoryName: string }>
+  ) => {
+    for (const { catalogItem, qty, categoryName } of toAdd) {
+      let serviceTypeId: number;
+      const existing = (menu.serviceTypes ?? []).find(
+        (st: any) => st.serviceTypeName.toLowerCase() === categoryName.toLowerCase()
+      );
+      if (existing) {
+        serviceTypeId = existing.id;
+      } else {
+        const newSt = await createServiceType.mutateAsync({
+          id: menu.id,
+          data: { serviceTypeName: categoryName },
+        });
+        serviceTypeId = (newSt as any).id;
+      }
+      await createItem.mutateAsync({
+        id: serviceTypeId,
+        data: {
+          itemName: catalogItem.name,
+          quantity: qty ? parseFloat(qty) : 1,
+          aLaCartePrice: catalogItem.price ? parseFloat(catalogItem.price) : undefined,
+          revenueCenterId: catalogItem.revenueCenterId ?? undefined,
+        },
+      });
+    }
+    invalidate();
+    toast({ title: `${toAdd.length} item${toAdd.length !== 1 ? "s" : ""} added` });
+  };
 
   const copyMenuMut = useMutation({
     mutationFn: () =>
@@ -1154,7 +1399,7 @@ function MenuBlock({
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button size="sm" onClick={() => setAddItemOpen(true)}>
+          <Button size="sm" onClick={() => setLibraryPickerOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" /> Add Item
           </Button>
           <DropdownMenu>
@@ -1183,7 +1428,7 @@ function MenuBlock({
           {allItems.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground text-sm border-t">
               <p>No items yet.</p>
-              <Button size="sm" variant="ghost" className="mt-2" onClick={() => setAddItemOpen(true)}>
+              <Button size="sm" variant="ghost" className="mt-2" onClick={() => setLibraryPickerOpen(true)}>
                 <Plus className="w-3.5 h-3.5 mr-1" /> Add first item
               </Button>
             </div>
@@ -1254,7 +1499,16 @@ function MenuBlock({
         </div>
       )}
 
-      {/* ── Add Item Modal ── */}
+      {/* ── Library Picker ── */}
+      <ItemLibraryPicker
+        open={libraryPickerOpen}
+        onClose={() => setLibraryPickerOpen(false)}
+        onAddCustom={() => setAddItemOpen(true)}
+        onConfirm={handleAddFromLibrary}
+        guestCount={guestCount}
+      />
+
+      {/* ── Add Custom Item Modal ── */}
       {addItemOpen && (
         <Dialog open onOpenChange={() => setAddItemOpen(false)}>
           <DialogContent className="max-w-md">
@@ -1466,7 +1720,7 @@ function AddMenuDialog({
 }) {
   const [view, setView] = useState<"library" | "custom">("library");
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("Show All");
+  const [categoryFilter, setCategoryFilter] = useState("_all_");
   const [selected, setSelected] = useState<number[]>([]);
 
   // Custom menu form state
@@ -1478,10 +1732,55 @@ function AddMenuDialog({
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
-  const { data: templates, isLoading } = useGetMenuTemplates(
-    { category: category !== "Show All" ? category : undefined, search: search || undefined },
+  // Fetch all templates (no server-side category filter — we group client-side)
+  const { data: allTemplates, isLoading } = useGetMenuTemplates(
+    { search: search || undefined },
     { query: { keepPreviousData: true } as any }
   );
+  const { data: meta } = useGetCatalogItemsMeta();
+
+  // Build categoryId → name map
+  const categoryMap = useMemo(
+    () => Object.fromEntries((meta?.categories ?? []).map((c: any) => [c.id, c.name])),
+    [meta]
+  );
+
+  // Resolve a template's display category (prefer categoryId lookup, fall back to category string)
+  const resolveCategory = (t: any): string => {
+    if (t.categoryId != null && categoryMap[t.categoryId]) return categoryMap[t.categoryId];
+    if (t.category) return t.category;
+    return "Uncategorized";
+  };
+
+  // Client-side category filter + group
+  const filteredTemplates = useMemo(() => {
+    return (allTemplates ?? []).filter((t: any) => {
+      if (categoryFilter !== "_all_") {
+        const cat = resolveCategory(t);
+        if (cat !== categoryFilter) return false;
+      }
+      return true;
+    });
+  }, [allTemplates, categoryFilter, categoryMap]);
+
+  // Group by category for display
+  const groupedTemplates = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    for (const t of filteredTemplates) {
+      const cat = resolveCategory(t);
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(t);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredTemplates, categoryMap]);
+
+  // Unique category names from all templates (for filter dropdown)
+  const allCategories = useMemo(() => {
+    const seen = new Set<string>();
+    for (const t of (allTemplates ?? [])) seen.add(resolveCategory(t));
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [allTemplates, categoryMap]);
+
   const addTemplate = useAddMenuTemplate();
   const createMenu = useCreateFunctionMenu();
 
@@ -1546,47 +1845,58 @@ function AddMenuDialog({
                   className="pl-9"
                 />
               </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-52"><SelectValue placeholder="All Categories" /></SelectTrigger>
                 <SelectContent>
-                  {MENU_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value="_all_">All Categories</SelectItem>
+                  {allCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/40">
                     <TableHead className="w-8"></TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Menu #</TableHead>
-                    <TableHead>Category</TableHead>
                     <TableHead>Pricing Type</TableHead>
                     <TableHead>Package Price</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-6"><Skeleton className="h-4 w-32 mx-auto" /></TableCell></TableRow>
                   )}
-                  {!isLoading && (!templates || templates.length === 0) && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">No templates found.</TableCell></TableRow>
+                  {!isLoading && groupedTemplates.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-sm">No templates found.</TableCell></TableRow>
                   )}
-                  {templates?.map((t: any) => (
-                    <TableRow
-                      key={t.id}
-                      className={`cursor-pointer ${selected.includes(t.id) ? "bg-primary/10" : ""}`}
-                      onClick={() => toggleSelect(t.id)}
-                    >
-                      <TableCell>
-                        <Checkbox checked={selected.includes(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
-                      </TableCell>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{t.menuNumber}</TableCell>
-                      <TableCell className="text-sm">{t.category}</TableCell>
-                      <TableCell className="text-sm text-xs">{t.pricingType}</TableCell>
-                      <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
-                    </TableRow>
+                  {groupedTemplates.map(([catName, rows]) => (
+                    <>
+                      <TableRow key={`cat-${catName}`} className="bg-muted/60 pointer-events-none select-none">
+                        <TableCell colSpan={5} className="py-1.5 px-3">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {catName}
+                          </span>
+                          <Badge variant="secondary" className="ml-2 text-xs font-normal">{rows.length}</Badge>
+                        </TableCell>
+                      </TableRow>
+                      {rows.map((t: any) => (
+                        <TableRow
+                          key={t.id}
+                          className={`cursor-pointer ${selected.includes(t.id) ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted/40"}`}
+                          onClick={() => toggleSelect(t.id)}
+                        >
+                          <TableCell>
+                            <Checkbox checked={selected.includes(t.id)} onCheckedChange={() => toggleSelect(t.id)} />
+                          </TableCell>
+                          <TableCell className="font-medium">{t.name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{t.menuNumber ?? "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{t.pricingType ?? "—"}</TableCell>
+                          <TableCell className="text-sm">{fmt(t.packagePrice)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </>
                   ))}
                 </TableBody>
               </Table>
@@ -1798,7 +2108,14 @@ export default function FunctionServices() {
           )}
           <div className="space-y-6">
             {menus?.map((menu: any) => (
-              <MenuBlock key={menu.id} menu={menu} functionId={functionId} eventId={eventId} allMenus={menus ?? []} />
+              <MenuBlock
+                key={menu.id}
+                menu={menu}
+                functionId={functionId}
+                eventId={eventId}
+                allMenus={menus ?? []}
+                guestCount={Number((fn as any)?.estimatedAttendance ?? (fn as any)?.guaranteedAttendance ?? 1)}
+              />
             ))}
           </div>
         </div>
