@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TaxRatesDialog, ServiceFeesDialog } from "@/components/RateEditors";
 import { useParams, Link } from "wouter";
 import {
   useGetEventFinancials,
@@ -69,6 +70,8 @@ export default function EventFinancials() {
   const params = useParams<{ id: string }>();
   const eventId = Number(params.id);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [taxDialogOpen, setTaxDialogOpen] = useState(false);
+  const [feeDialogOpen, setFeeDialogOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     date: new Date().toISOString().slice(0, 10),
@@ -157,6 +160,7 @@ export default function EventFinancials() {
   const balanceDue = fin?.balanceDue ?? 0;
 
   return (
+    <>
     <div className="flex h-full -m-6">
       {/* Left sidebar */}
       <div className="w-64 border-r bg-card flex-shrink-0 flex flex-col">
@@ -507,7 +511,7 @@ export default function EventFinancials() {
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Tax Rates</CardTitle>
-              <Button size="sm" variant="outline">Edit Rates</Button>
+              <Button size="sm" variant="outline" onClick={() => setTaxDialogOpen(true)}>Edit Rates</Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -535,7 +539,7 @@ export default function EventFinancials() {
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Service Fee Rates</CardTitle>
-              <Button size="sm" variant="outline">Edit Rates</Button>
+              <Button size="sm" variant="outline" onClick={() => setFeeDialogOpen(true)}>Edit Rates</Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -641,5 +645,8 @@ export default function EventFinancials() {
         </Dialog>
       )}
     </div>
+    <TaxRatesDialog open={taxDialogOpen} onOpenChange={setTaxDialogOpen} />
+    <ServiceFeesDialog open={feeDialogOpen} onOpenChange={setFeeDialogOpen} />
+    </>
   );
 }
