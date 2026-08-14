@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed:dev": "tsx ./src/seed-dev-fixture.ts",
+    "verify:pricing": "tsx ./src/verify-pricing.ts",
+    "backfill:items": "tsx ./src/backfill-service-items.ts",
+    "seed:rates": "tsx ./src/seed-rate-config.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:"
   }
 }
