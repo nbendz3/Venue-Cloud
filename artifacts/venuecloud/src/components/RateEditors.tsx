@@ -206,6 +206,34 @@ interface ServiceFee {
 }
 
 /**
+ * A row in `applied_rates`. The column stores a fraction (0.2200); the API
+ * converts to and from percent so nothing in the UI has to know that.
+ */
+interface AppliedRate {
+  id?: number;
+  name: string;
+  ratePercent: string | number;
+  revenueCenterId?: number | null;
+  isActive?: boolean | null;
+  _new?: boolean;
+  _deleted?: boolean;
+}
+
+/** What the pricing engine reports it will actually charge. */
+interface EffectiveConfig {
+  source: "applied_rates" | "service_fees" | "none";
+  charges: Array<{
+    name: string;
+    ratePercent: number;
+    isGratuity: boolean;
+    isTaxable: boolean;
+    scope: string;
+    appliedRateId: number | null;
+  }>;
+  warnings: string[];
+}
+
+/**
  * Editor for service charges and gratuity.
  *
  * Two fees of the same kind are ambiguous rather than additive — a property
@@ -217,27 +245,51 @@ export function ServiceFeesDialog({ open, onOpenChange }: { open: boolean; onOpe
   const qc = useQueryClient();
   const { toast } = useToast();
   const [rows, setRows] = useState<ServiceFee[]>([]);
+  const [effective, setEffective] = useState<EffectiveConfig | null>(null);
+  const [applied, setApplied] = useState<AppliedRate[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    json(`${BASE}/service-fees`)
-      .then((d) => setRows((d ?? []).map((f: any) => ({ ...f, isTaxable: f.isTaxable === true }))))
+    Promise.all([
+      json(`${BASE}/service-fees`),
+      json(`${BASE}/rate-config/effective`),
+      json(`${BASE}/applied-rates`),
+    ])
+      .then(([fees, eff, appliedRates]) => {
+        setRows((fees ?? []).map((f: any) => ({ ...f, isTaxable: f.isTaxable === true })));
+        setEffective(eff ?? null);
+        setApplied(appliedRates ?? []);
+      })
       .catch((e) => toast({ title: "Could not load service fees", description: e.message, variant: "destructive" }))
       .finally(() => setLoading(false));
   }, [open]);
 
   const visible = rows.filter((r) => !r._deleted);
   const gratuityCount = visible.filter((r) => /gratuit|tip/i.test(r.name)).length;
+  const visibleApplied = applied.filter((r) => !r._deleted);
+  const appliedWins = effective?.source === "applied_rates";
 
   const setField = (i: number, field: keyof ServiceFee, value: unknown) =>
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
 
+  const setAppliedField = (i: number, field: keyof AppliedRate, value: unknown) =>
+    setApplied((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+
   async function save() {
     setSaving(true);
     try {
+      for (const r of applied) {
+        if (r._deleted && r.id) {
+          await json(`${BASE}/applied-rates/${r.id}`, { method: "DELETE" });
+        } else if (r._new && !r._deleted) {
+          await json(`${BASE}/applied-rates`, { method: "POST", body: JSON.stringify(r) });
+        } else if (r.id && !r._deleted) {
+          await json(`${BASE}/applied-rates/${r.id}`, { method: "PUT", body: JSON.stringify(r) });
+        }
+      }
       for (const r of rows) {
         if (r._deleted && r.id) {
           await json(`${BASE}/service-fees/${r.id}`, { method: "DELETE" });
@@ -248,7 +300,7 @@ export function ServiceFeesDialog({ open, onOpenChange }: { open: boolean; onOpe
         }
       }
       await qc.invalidateQueries();
-      toast({ title: "Service fees saved" });
+      toast({ title: "Service charges saved" });
       onOpenChange(false);
     } catch (e: any) {
       toast({ title: "Could not save", description: e.message, variant: "destructive" });
@@ -272,10 +324,93 @@ export function ServiceFeesDialog({ open, onOpenChange }: { open: boolean; onOpe
             <Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Loading…
           </div>
         ) : (
-          <div className="space-y-2 max-h-[20rem] overflow-y-auto">
+          <div className="space-y-4 max-h-[24rem] overflow-y-auto">
+            {/*
+              What the pricing engine says it will charge - not what this
+              dialog infers from one table. `applied_rates` overrules
+              `service_fees`, so reading only the latter used to produce the
+              claim that quotes showed no service charge while every quote
+              carried 22%.
+            */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Currently charging
+              </p>
+              {(effective?.charges.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Nothing. Quotes show no service charge or gratuity until you add one.
+                </p>
+              ) : (
+                effective!.charges.map((c, i) => (
+                  <div key={`eff-${i}`} className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{c.name}</span>
+                    <Badge variant="secondary" className="font-mono text-[11px]">
+                      {c.ratePercent}%
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{c.scope}</span>
+                    {c.isTaxable && <Badge variant="outline" className="text-[10px]">Taxable</Badge>}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {appliedWins && (
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Applied rates
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  These take priority over the fees below. While an applied rate is set, adding a fee
+                  here will not change any quote.
+                </p>
+                {applied.map((r, i) =>
+                  r._deleted ? null : (
+                    <div key={r.id ?? `new-applied-${i}`} className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-xs">Name</Label>
+                        <Input
+                          value={r.name}
+                          onChange={(e) => setAppliedField(i, "name", e.target.value)}
+                          placeholder="Standard Service Charge"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <Label className="text-xs">Rate %</Label>
+                        <Input
+                          value={String(r.ratePercent ?? "")}
+                          onChange={(e) => setAppliedField(i, "ratePercent", e.target.value)}
+                          placeholder="22"
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="mb-1"
+                        onClick={() => setAppliedField(i, "_deleted", true)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  )
+                )}
+                {visibleApplied.length === 0 && (
+                  <p className="text-xs text-amber-700 flex items-start gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    Removing every applied rate falls back to the fees below. Save and reopen to see
+                    what that changes.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-1">
+              Additional fees
+            </p>
             {visible.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                No service charge configured, so quotes show none. Add one below.
+              <p className="text-sm text-muted-foreground py-2">
+                {(effective?.charges.length ?? 0) > 0
+                  ? "None. The charges above are what quotes use."
+                  : "None configured, so quotes show none. Add one below."}
               </p>
             )}
             {rows.map((r, i) =>
@@ -311,13 +446,20 @@ export function ServiceFeesDialog({ open, onOpenChange }: { open: boolean; onOpe
           <Plus className="w-4 h-4 mr-1" /> Add a fee
         </Button>
 
-        {gratuityCount > 1 && (
+        {gratuityCount > 1 && !appliedWins && (
           <p className="text-xs text-amber-700 flex items-start gap-1.5">
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             More than one gratuity is configured. These are treated as alternatives, not added together, so
             none will be charged until only one remains.
           </p>
         )}
+
+        {(effective?.warnings ?? []).map((w, i) => (
+          <p key={`warn-${i}`} className="text-xs text-amber-700 flex items-start gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            {w}
+          </p>
+        ))}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

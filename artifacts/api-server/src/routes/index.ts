@@ -30,6 +30,7 @@ import eventContactsRouter from "./eventContacts";
 import eventPersonnelRouter from "./eventPersonnel";
 import catalogItemsRouter from "./catalogItems";
 import searchRouter from "./search";
+import rateConfigRouter from "./rateConfig";
 
 const router: IRouter = Router();
 
@@ -47,6 +48,7 @@ router.use("/service-types", serviceTypesRouter);
 router.use("/service-items", serviceItemsRouter);
 router.use("/menu-templates", menuTemplatesRouter);
 router.use(revenueCentersRouter);
+router.use(rateConfigRouter);
 router.use(paymentsRouter);
 router.use("/accounts", accountsRouter);
 router.use("/contacts", contactsRouter);
