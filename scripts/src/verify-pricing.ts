@@ -28,6 +28,7 @@ function check(label: string, actual: unknown, expected: unknown) {
 async function main() {
   // Make the run repeatable: clear any rate configuration left behind by a
   // previous run, so phase 1 always starts from "nothing configured".
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "yes") { console.error("Refusing to run: this rewrites tax and service-fee configuration. Point DATABASE_URL at a dev database and set ALLOW_DESTRUCTIVE_SEED=yes."); process.exit(1); }
   await db.delete(serviceFeesTable);
   await db
     .update(revenueCentersTable)
