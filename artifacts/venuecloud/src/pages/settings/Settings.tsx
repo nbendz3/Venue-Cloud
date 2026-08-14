@@ -24,7 +24,7 @@ const BASE = "/api";
 
 type Item = { id: number; name?: string; status?: string; color?: string; textColor?: string; [key: string]: unknown };
 
-type RevenueCenter = { id: number; name: string; fieldCode?: string | null; category?: string | null; isActive?: boolean | null; isDefault?: boolean | null };
+type RevenueCenter = { id: number; name: string; fieldCode?: string | null; category?: string | null; isActive?: boolean | null; isDefault?: boolean | null; salesTaxRate?: string | null; occupancyTaxRate?: string | null };
 type LifecycleModel = { id: number; name: string; description?: string | null; category?: string | null; stages?: string | null; isDefault?: boolean | null; definedInMasterList?: boolean | null };
 type SetupStyle = { id: number; name: string; fieldCode?: string | null; definedInMasterList?: boolean | null };
 type ServiceItemCategory = { id: number; name: string; fieldCode?: string | null };
@@ -98,6 +98,8 @@ function RevenueCenterForm({ item, onSave, onCancel }: { item?: RevenueCenter; o
     category: item?.category ?? "",
     isActive: item?.isActive ?? true,
     isDefault: item?.isDefault ?? false,
+    salesTaxRate: item?.salesTaxRate ?? "",
+    occupancyTaxRate: item?.occupancyTaxRate ?? "",
   });
   const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
   return (
@@ -105,6 +107,18 @@ function RevenueCenterForm({ item, onSave, onCancel }: { item?: RevenueCenter; o
       <div className="grid grid-cols-2 gap-3">
         <div><Label>Name *</Label><Input className="mt-1" value={form.name} onChange={e => set("name", e.target.value)} /></div>
         <div><Label>Field Code</Label><Input className="mt-1" value={form.fieldCode} onChange={e => set("fieldCode", e.target.value)} /></div>
+      </div>
+      {/* These two drive every quoted total. They previously had no editor
+          anywhere in the app, which is why they all sat at 0%. */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label>Sales Tax %</Label>
+          <Input className="mt-1" value={form.salesTaxRate} onChange={e => set("salesTaxRate", e.target.value)} placeholder="e.g. 7.75" />
+        </div>
+        <div>
+          <Label>Occupancy Tax %</Label>
+          <Input className="mt-1" value={form.occupancyTaxRate} onChange={e => set("occupancyTaxRate", e.target.value)} placeholder="0" />
+        </div>
       </div>
       <div>
         <Label>Category</Label>
@@ -128,7 +142,18 @@ function RevenueCenterForm({ item, onSave, onCancel }: { item?: RevenueCenter; o
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={() => onSave(form)} disabled={!form.name}>Save</Button>
+        <Button
+          onClick={() =>
+            onSave({
+              ...form,
+              salesTaxRate: form.salesTaxRate === "" ? "0" : String(parseFloat(String(form.salesTaxRate)) || 0),
+              occupancyTaxRate: form.occupancyTaxRate === "" ? "0" : String(parseFloat(String(form.occupancyTaxRate)) || 0),
+            })
+          }
+          disabled={!form.name}
+        >
+          Save
+        </Button>
       </DialogFooter>
     </div>
   );
@@ -165,15 +190,15 @@ function RevenueCentersPanel() {
       <div className="border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
-            <tr>{["Actions", "Name", "Field Code", "Category", "Is Active", "Is Default"].map(h => (
+            <tr>{["Actions", "Name", "Field Code", "Category", "Sales Tax %", "Occ. Tax %", "Is Active", "Is Default"].map(h => (
               <th key={h} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
             ))}</tr>
           </thead>
           <tbody className="divide-y bg-white">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">Loading…</td></tr>
             ) : !items.length ? (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400">No records. Click "New Revenue Center" to add one.</td></tr>
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-400">No records. Click "New Revenue Center" to add one.</td></tr>
             ) : items.map(item => (
               <tr key={item.id} className="hover:bg-gray-50">
                 <td className="px-3 py-2">
@@ -185,6 +210,12 @@ function RevenueCentersPanel() {
                 <td className="px-3 py-2 font-medium text-gray-800">{item.name}</td>
                 <td className="px-3 py-2 font-mono text-xs text-gray-500">{item.fieldCode || "—"}</td>
                 <td className="px-3 py-2 text-gray-600">{item.category || "—"}</td>
+                <td className={`px-3 py-2 ${Number(item.salesTaxRate ?? 0) === 0 ? "text-gray-400" : "text-gray-700 font-medium"}`}>
+                  {Number(item.salesTaxRate ?? 0).toFixed(2)}%
+                </td>
+                <td className={`px-3 py-2 ${Number(item.occupancyTaxRate ?? 0) === 0 ? "text-gray-400" : "text-gray-700 font-medium"}`}>
+                  {Number(item.occupancyTaxRate ?? 0).toFixed(2)}%
+                </td>
                 <td className="px-3 py-2"><BoolBadge value={item.isActive} /></td>
                 <td className="px-3 py-2"><BoolBadge value={item.isDefault} /></td>
               </tr>
@@ -657,6 +688,13 @@ function AppliedRatesPanel() {
 }
 
 // ── Tax Rates Panel ───────────────────────────────────────────────────────────
+//
+// NOTE: this is a reference list of named rates. It does NOT drive pricing.
+// The rates actually applied to quotes live on each revenue centre
+// (Settings > Revenue Centers, or Edit Rates on any event's Financials page).
+// The banner below says so, because a screen called "Tax Rates" that has no
+// effect on tax is a trap: this property had 7.75% entered here for months
+// while every quote was calculated at 0%.
 
 function TaxRateForm({ item, onSave, onCancel }: { item?: TaxRate; onSave: (d: any) => void; onCancel: () => void }) {
   const [form, setForm] = useState({
@@ -718,6 +756,12 @@ function TaxRatesPanel() {
 
   return (
     <>
+      <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+        <span className="font-semibold">This is a reference list — it does not affect quotes.</span>{" "}
+        The tax actually applied to events is set per revenue centre, under{" "}
+        <span className="font-medium">Revenue Centers</span> above, or via{" "}
+        <span className="font-medium">Edit Rates</span> on any event's Financials page.
+      </div>
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-gray-500">{items.length} record{items.length !== 1 ? "s" : ""}</span>
         <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-3.5 w-3.5 mr-1" />New Tax Rate</Button>
