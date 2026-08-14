@@ -208,6 +208,7 @@ function ServiceItemRow({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           setEditing(false);
           toast({ title: "Item updated" });
         },
@@ -221,6 +222,7 @@ function ServiceItemRow({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: "Item deleted" });
         },
       }
@@ -632,6 +634,7 @@ function ServiceTypeBlock({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           setAddItemOpen(false);
           setItemForm({ itemName: "", description: "", aLaCartePrice: "", addOnPrice: "", cost: "", quantity: "1", appliedRates: "Gratuity and Sales Tax", category: "" });
           toast({ title: "Item added" });
@@ -646,6 +649,7 @@ function ServiceTypeBlock({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: "Service type removed" });
         },
       }
@@ -853,6 +857,7 @@ function ServiceTypeBlock({
                     });
                   }
                   queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
                   toast({ title: `${selectedMasterItems.length} item(s) added from library` });
                   setMasterListOpen(false);
                   setSelectedMasterItems([]);
@@ -940,6 +945,7 @@ function ServiceTypeBlock({
                     });
                   }
                   queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
                   toast({ title: `${selectedMenuItems.length} item(s) copied from menu` });
                   setFromMenuOpen(false);
                   setSelectedMenuItems([]);
@@ -1252,7 +1258,10 @@ function MenuBlock({
   const updateItem = useUpdateServiceItem();
   const deleteItem = useDeleteServiceItem();
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+  const invalidate = () => {
+    qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
+    return qc.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+  };
 
   const handleAddFromLibrary = async (
     toAdd: Array<{ catalogItem: any; qty: string; categoryName: string; sectionName: string; notes: string }>
@@ -2037,6 +2046,7 @@ function AddMenuDialog({
       {
         onSuccess: (newMenu: any) => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: `"${customName.trim()}" created` });
           onClose();
           navigate(`/events/${eventId}/functions/${functionId}/menus/${newMenu.id}/edit`);

@@ -1,0 +1,2868 @@
+From 5a71f6b05dd953ed66240b109c7b9c19a50ab96a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:45:11 +0000
+Subject: [PATCH 1/6] Add a single pricing engine as the source of truth for
+ all money
+
+The app had four independent money calculations that disagreed with each
+other. For function 1 of event 1 they produced three different answers:
+
+  services page sidebar   $6,053.00 (charges only)
+  event financials        $7,384.66 (22% gratuity, 0% tax)
+  printed BEO             $7,868.90 (hard-coded 8% tax, 22% gratuity)
+
+This adds calculateFunctionPricing / calculateEventPricing as the one place
+money is computed. Design rules:
+
+  * Rates are configuration, never constants. Sales and occupancy tax come
+    from revenue_centers; service charge and gratuity from service_fees.
+    An unconfigured rate yields zero AND a warning, rather than silently
+    substituting an invented default -- a wrong number on a signed BEO is
+    worse than a visibly missing one. The old code fell back to `0.22`
+    whenever it could not find a fee whose *name* contained "22%".
+  * Only items explicitly selected, with quantity > 0, are billable.
+  * Adjustments pro-rate by share of charges rather than splitting evenly,
+    which used to move money between revenue centers.
+  * Taxable service fees widen the tax base.
+  * Rounding happens once per revenue-center subtotal, never per line.
+
+Pure helpers (isBillable, computeLineTotal, computeLineCost, round2) are
+exported so they can be tested without a database.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ artifacts/api-server/src/services/pricing.ts | 645 +++++++++++++++++++
+ 1 file changed, 645 insertions(+)
+ create mode 100644 artifacts/api-server/src/services/pricing.ts
+
+diff --git a/artifacts/api-server/src/services/pricing.ts b/artifacts/api-server/src/services/pricing.ts
+new file mode 100644
+index 0000000..4e513f1
+--- /dev/null
++++ b/artifacts/api-server/src/services/pricing.ts
+@@ -0,0 +1,645 @@
++/**
++ * Central pricing engine.
++ *
++ * This is the ONLY place in the codebase where money is calculated. Every
++ * surface — the services builder, function financials, event financials, the
++ * printed BEO, and reports — must read its numbers from here.
++ *
++ * Design rules:
++ *
++ *  1. Rates are configuration, never constants. Sales tax and occupancy tax
++ *     come from `revenue_centers`; service charges and gratuity come from
++ *     `service_fees`. If a rate is not configured the result is zero and a
++ *     warning is emitted. We never silently substitute an invented default —
++ *     a wrong number on a signed BEO is worse than a visibly missing one.
++ *
++ *  2. Only SELECTED line items with a positive quantity are billable.
++ *     Attaching a menu template makes items *available*; checking them makes
++ *     them *ordered*.
++ *
++ *  3. Rounding happens once, at the revenue-center subtotal, never per line.
++ */
++
++import { db } from "@workspace/db";
++import {
++  functionsTable,
++  functionMenusTable,
++  serviceTypesTable,
++  serviceItemsTable,
++  revenueCentersTable,
++  serviceFeesTable,
++  adjustmentsTable,
++  additionalFeesTable,
++  paymentsTable,
++} from "@workspace/db";
++import { eq, inArray } from "drizzle-orm";
++
++/* -------------------------------------------------------------------------- */
++/* Types                                                                      */
++/* -------------------------------------------------------------------------- */
++
++export interface PricedLine {
++  serviceItemId: number;
++  serviceTypeId: number;
++  functionMenuId: number;
++  itemName: string;
++  quantity: number;
++  unitPrice: number;
++  /** Hours multiplier applied when the item is charged hourly; 1 otherwise. */
++  hours: number;
++  lineTotal: number;
++  unitCost: number;
++  lineCost: number;
++  revenueCenterId: number | null;
++  revenueCenterName: string;
++  /** Internal items appear on the BEO for staff but are never charged. */
++  isInternal: boolean;
++}
++
++export interface RevenueCenterTotals {
++  revenueCenterId: number | null;
++  revenueCenterName: string;
++  charges: number;
++  adjustments: number;
++  adjustedCharges: number;
++  serviceCharge: number;
++  gratuity: number;
++  salesTax: number;
++  occupancyTax: number;
++  total: number;
++  cost: number;
++  margin: number;
++  marginPercent: number;
++}
++
++export interface PricingTotals {
++  charges: number;
++  adjustments: number;
++  adjustedCharges: number;
++  serviceCharge: number;
++  gratuity: number;
++  salesTax: number;
++  occupancyTax: number;
++  additionalFees: number;
++  total: number;
++  cost: number;
++  margin: number;
++  marginPercent: number;
++}
++
++export interface FunctionPricing {
++  functionId: number;
++  lines: PricedLine[];
++  /** Keyed by function_menu id. */
++  menuTotals: Record<number, { charges: number; cost: number; selectedCount: number; itemCount: number }>;
++  /** Keyed by service_type id. */
++  serviceTypeTotals: Record<number, { charges: number; cost: number; selectedCount: number; itemCount: number }>;
++  byRevenueCenter: RevenueCenterTotals[];
++  totals: PricingTotals;
++  /** Rate configuration problems the UI should surface to the user. */
++  warnings: string[];
++}
++
++export interface EventPricing {
++  eventId: number;
++  functions: (FunctionPricing & { functionType: string | null; functionDate: string | null })[];
++  byRevenueCenter: RevenueCenterTotals[];
++  totals: PricingTotals;
++  paymentsReceived: number;
++  balanceDue: number;
++  warnings: string[];
++}
++
++/* -------------------------------------------------------------------------- */
++/* Pure helpers — exported so they can be unit tested without a database.      */
++/* -------------------------------------------------------------------------- */
++
++export function toNum(value: unknown, fallback = 0): number {
++  if (value === null || value === undefined || value === "") return fallback;
++  const n = typeof value === "number" ? value : parseFloat(String(value));
++  return Number.isFinite(n) ? n : fallback;
++}
++
++export function round2(n: number): number {
++  // Nudge away from binary representation error before rounding so that
++  // values like 1.005 round the way an accountant expects.
++  return Math.round((n + Number.EPSILON) * 100) / 100;
++}
++
++/** A line is billable only when it has been explicitly selected. */
++export function isBillable(item: {
++  selected?: boolean | null;
++  quantity?: string | number | null;
++  markItemInternal?: boolean | null;
++}): boolean {
++  if (item.selected !== true) return false;
++  if (item.markItemInternal === true) return false;
++  return toNum(item.quantity, 0) > 0;
++}
++
++/** quantity x unit price, x hours when the item is charged hourly. */
++export function computeLineTotal(item: {
++  quantity?: string | number | null;
++  aLaCartePrice?: string | number | null;
++  addOnPrice?: string | number | null;
++  chargeHourly?: boolean | null;
++  numHours?: string | number | null;
++  overtimeHours?: string | number | null;
++  overtimeHoursPrice?: string | number | null;
++}): number {
++  const qty = toNum(item.quantity, 0);
++  const unit = toNum(item.aLaCartePrice, 0) + toNum(item.addOnPrice, 0);
++  const hours = item.chargeHourly === true ? toNum(item.numHours, 0) : 1;
++  const base = qty * unit * hours;
++  const overtime = toNum(item.overtimeHours, 0) * toNum(item.overtimeHoursPrice, 0);
++  return base + overtime;
++}
++
++export function computeLineCost(item: {
++  quantity?: string | number | null;
++  cost?: string | number | null;
++  chargeHourly?: boolean | null;
++  numHours?: string | number | null;
++}): number {
++  const qty = toNum(item.quantity, 0);
++  const hours = item.chargeHourly === true ? toNum(item.numHours, 0) : 1;
++  return qty * toNum(item.cost, 0) * hours;
++}
++
++function emptyTotals(): PricingTotals {
++  return {
++    charges: 0,
++    adjustments: 0,
++    adjustedCharges: 0,
++    serviceCharge: 0,
++    gratuity: 0,
++    salesTax: 0,
++    occupancyTax: 0,
++    additionalFees: 0,
++    total: 0,
++    cost: 0,
++    margin: 0,
++    marginPercent: 0,
++  };
++}
++
++/* -------------------------------------------------------------------------- */
++/* Rate configuration                                                         */
++/* -------------------------------------------------------------------------- */
++
++interface RateConfig {
++  revenueCentersById: Map<number, typeof revenueCentersTable.$inferSelect>;
++  defaultRevenueCenter: typeof revenueCentersTable.$inferSelect | null;
++  serviceFees: (typeof serviceFeesTable.$inferSelect)[];
++  warnings: string[];
++}
++
++/**
++ * A service fee named like a gratuity is reported in the `gratuity` bucket so
++ * the UI can show it on its own line; everything else rolls into
++ * `serviceCharge`. Both are computed identically — this is presentation only.
++ */
++function isGratuityFee(fee: { name: string }): boolean {
++  return /gratuit|tip/i.test(fee.name);
++}
++
++export async function loadRateConfig(): Promise<RateConfig> {
++  const [revCenters, serviceFees] = await Promise.all([
++    db.select().from(revenueCentersTable),
++    db.select().from(serviceFeesTable),
++  ]);
++
++  const warnings: string[] = [];
++  const revenueCentersById = new Map<number, typeof revenueCentersTable.$inferSelect>();
++  for (const rc of revCenters) revenueCentersById.set(rc.id, rc);
++
++  const defaultRevenueCenter = revCenters.find((rc) => rc.isDefault === true) ?? null;
++  if (!defaultRevenueCenter) {
++    warnings.push(
++      "No default revenue center is set. Items without a revenue center are excluded from tax. Set one in Settings > Revenue Centers."
++    );
++  }
++
++  if (serviceFees.length === 0) {
++    warnings.push(
++      "No service fees are configured, so service charge and gratuity are $0. Add them in Settings > Financial."
++    );
++  }
++
++  const untaxed = revCenters.filter(
++    (rc) => rc.isActive !== false && toNum(rc.salesTaxRate, 0) === 0 && toNum(rc.occupancyTaxRate, 0) === 0
++  );
++  if (untaxed.length === revCenters.length && revCenters.length > 0) {
++    warnings.push(
++      "No tax rates are configured on any revenue center, so all tax is $0. Set them in Settings > Tax Rates."
++    );
++  }
++
++  return { revenueCentersById, defaultRevenueCenter, serviceFees, warnings };
++}
++
++/* -------------------------------------------------------------------------- */
++/* Revenue-center rollup                                                      */
++/* -------------------------------------------------------------------------- */
++
++interface Bucket {
++  revenueCenterId: number | null;
++  revenueCenterName: string;
++  charges: number;
++  cost: number;
++}
++
++/**
++ * Applies service fees and taxes to a set of per-revenue-center charge buckets.
++ *
++ * Order of operations:
++ *   adjusted   = charges - adjustments (pro-rated across centers by charge share)
++ *   fees       = adjusted x each configured service fee rate
++ *   taxable    = adjusted + (fees flagged taxable)
++ *   sales tax  = taxable x that center's sales tax rate
++ *   occ tax    = taxable x that center's occupancy tax rate
++ */
++function applyRates(
++  buckets: Bucket[],
++  totalAdjustments: number,
++  config: RateConfig
++): { rows: RevenueCenterTotals[]; totals: PricingTotals } {
++  const grossCharges = buckets.reduce((s, b) => s + b.charges, 0);
++
++  const rows: RevenueCenterTotals[] = buckets.map((bucket) => {
++    // Pro-rate adjustments by share of charges rather than splitting evenly
++    // across centers — an even split moves money between revenue centers.
++    const share = grossCharges > 0 ? bucket.charges / grossCharges : 0;
++    const adjustments = totalAdjustments * share;
++    const adjustedCharges = Math.max(0, bucket.charges - adjustments);
++
++    const rc = bucket.revenueCenterId != null ? config.revenueCentersById.get(bucket.revenueCenterId) : undefined;
++    const salesTaxRate = toNum(rc?.salesTaxRate, 0) / 100;
++    const occupancyTaxRate = toNum(rc?.occupancyTaxRate, 0) / 100;
++
++    let serviceCharge = 0;
++    let gratuity = 0;
++    let taxableFees = 0;
++
++    for (const fee of config.serviceFees) {
++      const amount = adjustedCharges * (toNum(fee.ratePercent, 0) / 100);
++      if (amount === 0) continue;
++      if (isGratuityFee(fee)) gratuity += amount;
++      else serviceCharge += amount;
++      if (fee.isTaxable === true) taxableFees += amount;
++    }
++
++    const taxableBase = adjustedCharges + taxableFees;
++    const salesTax = taxableBase * salesTaxRate;
++    const occupancyTax = taxableBase * occupancyTaxRate;
++
++    const total = adjustedCharges + serviceCharge + gratuity + salesTax + occupancyTax;
++    const margin = adjustedCharges - bucket.cost;
++
++    return {
++      revenueCenterId: bucket.revenueCenterId,
++      revenueCenterName: bucket.revenueCenterName,
++      charges: round2(bucket.charges),
++      adjustments: round2(adjustments),
++      adjustedCharges: round2(adjustedCharges),
++      serviceCharge: round2(serviceCharge),
++      gratuity: round2(gratuity),
++      salesTax: round2(salesTax),
++      occupancyTax: round2(occupancyTax),
++      total: round2(total),
++      cost: round2(bucket.cost),
++      margin: round2(margin),
++      marginPercent: adjustedCharges > 0 ? round2((margin / adjustedCharges) * 100) : 0,
++    };
++  });
++
++  rows.sort((a, b) => b.charges - a.charges);
++
++  const totals = rows.reduce<PricingTotals>((acc, r) => {
++    acc.charges += r.charges;
++    acc.adjustments += r.adjustments;
++    acc.adjustedCharges += r.adjustedCharges;
++    acc.serviceCharge += r.serviceCharge;
++    acc.gratuity += r.gratuity;
++    acc.salesTax += r.salesTax;
++    acc.occupancyTax += r.occupancyTax;
++    acc.total += r.total;
++    acc.cost += r.cost;
++    return acc;
++  }, emptyTotals());
++
++  totals.margin = round2(totals.adjustedCharges - totals.cost);
++  totals.marginPercent = totals.adjustedCharges > 0 ? round2((totals.margin / totals.adjustedCharges) * 100) : 0;
++
++  for (const k of Object.keys(totals) as (keyof PricingTotals)[]) totals[k] = round2(totals[k]);
++
++  return { rows, totals };
++}
++
++/* -------------------------------------------------------------------------- */
++/* Function pricing                                                           */
++/* -------------------------------------------------------------------------- */
++
++export async function calculateFunctionPricing(
++  functionId: number,
++  preloadedConfig?: RateConfig
++): Promise<FunctionPricing> {
++  const config = preloadedConfig ?? (await loadRateConfig());
++
++  const menus = await db
++    .select()
++    .from(functionMenusTable)
++    .where(eq(functionMenusTable.functionId, functionId));
++
++  const menuIds = menus.map((m) => m.id);
++
++  const serviceTypes = menuIds.length
++    ? await db.select().from(serviceTypesTable).where(inArray(serviceTypesTable.functionMenuId, menuIds))
++    : [];
++
++  const serviceTypeIds = serviceTypes.map((st) => st.id);
++
++  const items = serviceTypeIds.length
++    ? await db.select().from(serviceItemsTable).where(inArray(serviceItemsTable.serviceTypeId, serviceTypeIds))
++    : [];
++
++  const menuIdByServiceType = new Map<number, number>();
++  for (const st of serviceTypes) menuIdByServiceType.set(st.id, st.functionMenuId);
++
++  const lines: PricedLine[] = [];
++  const menuTotals: FunctionPricing["menuTotals"] = {};
++  const serviceTypeTotals: FunctionPricing["serviceTypeTotals"] = {};
++  const bucketsByRc = new Map<string, Bucket>();
++
++  for (const m of menus) {
++    menuTotals[m.id] = { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
++  }
++  for (const st of serviceTypes) {
++    serviceTypeTotals[st.id] = { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
++  }
++
++  for (const item of items) {
++    const menuId = menuIdByServiceType.get(item.serviceTypeId);
++    if (menuId === undefined) continue;
++
++    if (menuTotals[menuId]) menuTotals[menuId].itemCount += 1;
++    if (serviceTypeTotals[item.serviceTypeId]) serviceTypeTotals[item.serviceTypeId].itemCount += 1;
++
++    if (!isBillable(item)) continue;
++
++    const lineTotal = computeLineTotal(item);
++    const lineCost = computeLineCost(item);
++
++    // Fall back to the configured default revenue center so that items without
++    // an explicit assignment are still taxed rather than silently landing in a
++    // zero-rate "Other" bucket.
++    const rcId = item.revenueCenterId ?? config.defaultRevenueCenter?.id ?? null;
++    const rcName =
++      (rcId != null ? config.revenueCentersById.get(rcId)?.name : undefined) ?? "Unassigned";
++
++    lines.push({
++      serviceItemId: item.id,
++      serviceTypeId: item.serviceTypeId,
++      functionMenuId: menuId,
++      itemName: item.itemName,
++      quantity: toNum(item.quantity, 0),
++      unitPrice: toNum(item.aLaCartePrice, 0) + toNum(item.addOnPrice, 0),
++      hours: item.chargeHourly === true ? toNum(item.numHours, 0) : 1,
++      lineTotal: round2(lineTotal),
++      unitCost: toNum(item.cost, 0),
++      lineCost: round2(lineCost),
++      revenueCenterId: rcId,
++      revenueCenterName: rcName,
++      isInternal: item.markItemInternal === true,
++    });
++
++    menuTotals[menuId].charges += lineTotal;
++    menuTotals[menuId].cost += lineCost;
++    menuTotals[menuId].selectedCount += 1;
++
++    serviceTypeTotals[item.serviceTypeId].charges += lineTotal;
++    serviceTypeTotals[item.serviceTypeId].cost += lineCost;
++    serviceTypeTotals[item.serviceTypeId].selectedCount += 1;
++
++    const key = String(rcId ?? "none");
++    const bucket = bucketsByRc.get(key) ?? {
++      revenueCenterId: rcId,
++      revenueCenterName: rcName,
++      charges: 0,
++      cost: 0,
++    };
++    bucket.charges += lineTotal;
++    bucket.cost += lineCost;
++    bucketsByRc.set(key, bucket);
++  }
++
++  for (const id of Object.keys(menuTotals)) {
++    const t = menuTotals[Number(id)];
++    t.charges = round2(t.charges);
++    t.cost = round2(t.cost);
++  }
++  for (const id of Object.keys(serviceTypeTotals)) {
++    const t = serviceTypeTotals[Number(id)];
++    t.charges = round2(t.charges);
++    t.cost = round2(t.cost);
++  }
++
++  const [adjustments, extraFees] = await Promise.all([
++    db.select().from(adjustmentsTable).where(eq(adjustmentsTable.functionId, functionId)),
++    db.select().from(additionalFeesTable).where(eq(additionalFeesTable.functionId, functionId)),
++  ]);
++
++  const totalAdjustments = adjustments.reduce((s, a) => s + toNum(a.amount, 0), 0);
++  const totalAdditionalFees = extraFees.reduce((s, f) => s + toNum(f.amount, 0), 0);
++
++  const { rows, totals } = applyRates([...bucketsByRc.values()], totalAdjustments, config);
++
++  totals.additionalFees = round2(totalAdditionalFees);
++  totals.total = round2(totals.total + totalAdditionalFees);
++
++  return {
++    functionId,
++    lines,
++    menuTotals,
++    serviceTypeTotals,
++    byRevenueCenter: rows,
++    totals,
++    warnings: config.warnings,
++  };
++}
++
++/* -------------------------------------------------------------------------- */
++/* Event pricing                                                              */
++/* -------------------------------------------------------------------------- */
++
++export async function calculateEventPricing(eventId: number): Promise<EventPricing> {
++  const config = await loadRateConfig();
++
++  const fns = await db.select().from(functionsTable).where(eq(functionsTable.eventId, eventId));
++
++  const functionPricings = await Promise.all(
++    fns.map(async (fn) => ({
++      ...(await calculateFunctionPricing(fn.id, config)),
++      functionType: fn.functionType,
++      functionDate: fn.functionDate,
++    }))
++  );
++
++  // Re-aggregate from the raw per-center rows so event totals are the sum of
++  // the same numbers the function pages display.
++  const merged = new Map<string, RevenueCenterTotals>();
++  for (const fp of functionPricings) {
++    for (const row of fp.byRevenueCenter) {
++      const key = String(row.revenueCenterId ?? "none");
++      const existing = merged.get(key);
++      if (!existing) {
++        merged.set(key, { ...row });
++        continue;
++      }
++      existing.charges = round2(existing.charges + row.charges);
++      existing.adjustments = round2(existing.adjustments + row.adjustments);
++      existing.adjustedCharges = round2(existing.adjustedCharges + row.adjustedCharges);
++      existing.serviceCharge = round2(existing.serviceCharge + row.serviceCharge);
++      existing.gratuity = round2(existing.gratuity + row.gratuity);
++      existing.salesTax = round2(existing.salesTax + row.salesTax);
++      existing.occupancyTax = round2(existing.occupancyTax + row.occupancyTax);
++      existing.total = round2(existing.total + row.total);
++      existing.cost = round2(existing.cost + row.cost);
++      existing.margin = round2(existing.margin + row.margin);
++      existing.marginPercent =
++        existing.adjustedCharges > 0 ? round2((existing.margin / existing.adjustedCharges) * 100) : 0;
++    }
++  }
++
++  const byRevenueCenter = [...merged.values()].sort((a, b) => b.charges - a.charges);
++
++  const totals = functionPricings.reduce<PricingTotals>((acc, fp) => {
++    acc.charges = round2(acc.charges + fp.totals.charges);
++    acc.adjustments = round2(acc.adjustments + fp.totals.adjustments);
++    acc.adjustedCharges = round2(acc.adjustedCharges + fp.totals.adjustedCharges);
++    acc.serviceCharge = round2(acc.serviceCharge + fp.totals.serviceCharge);
++    acc.gratuity = round2(acc.gratuity + fp.totals.gratuity);
++    acc.salesTax = round2(acc.salesTax + fp.totals.salesTax);
++    acc.occupancyTax = round2(acc.occupancyTax + fp.totals.occupancyTax);
++    acc.additionalFees = round2(acc.additionalFees + fp.totals.additionalFees);
++    acc.total = round2(acc.total + fp.totals.total);
++    acc.cost = round2(acc.cost + fp.totals.cost);
++    return acc;
++  }, emptyTotals());
++
++  totals.margin = round2(totals.adjustedCharges - totals.cost);
++  totals.marginPercent = totals.adjustedCharges > 0 ? round2((totals.margin / totals.adjustedCharges) * 100) : 0;
++
++  // Payments are polymorphic: relatedType/relatedId point at either the event
++  // itself or one of its functions.
++  const functionIds = new Set(fns.map((f) => f.id));
++  const allPayments = await db.select().from(paymentsTable);
++  const relType = (p: { relatedType: string | null }) => (p.relatedType ?? "").toLowerCase();
++  const paymentsReceived = round2(
++    allPayments
++      .filter(
++        (p) =>
++          (relType(p) === "event" && p.relatedId === eventId) ||
++          (relType(p) === "function" && p.relatedId != null && functionIds.has(p.relatedId))
++      )
++      .reduce((s, p) => s + toNum(p.paymentAmount, 0), 0)
++  );
++
++  return {
++    eventId,
++    functions: functionPricings,
++    byRevenueCenter,
++    totals,
++    paymentsReceived,
++    balanceDue: round2(totals.total - paymentsReceived),
++    warnings: config.warnings,
++  };
++}
++
++/* -------------------------------------------------------------------------- */
++/* Persistence of cached rollups                                              */
++/* -------------------------------------------------------------------------- */
++
++/**
++ * Writes the computed rollups back onto function_menus / service_types /
++ * service_items so that consumers reading those columns directly (reports,
++ * exports) see current values. Call after any mutation to a function's items.
++ */
++export async function persistFunctionRollups(functionId: number): Promise<FunctionPricing> {
++  const pricing = await calculateFunctionPricing(functionId);
++
++  const lineById = new Map(pricing.lines.map((l) => [l.serviceItemId, l]));
++
++  const menuIds = await db
++    .select({ id: functionMenusTable.id })
++    .from(functionMenusTable)
++    .where(eq(functionMenusTable.functionId, functionId));
++
++  const stRows = menuIds.length
++    ? await db
++        .select({ id: serviceTypesTable.id })
++        .from(serviceTypesTable)
++        .where(inArray(serviceTypesTable.functionMenuId, menuIds.map((m) => m.id)))
++    : [];
++
++  const allItems = stRows.length
++    ? await db
++        .select({ id: serviceItemsTable.id })
++        .from(serviceItemsTable)
++        .where(inArray(serviceItemsTable.serviceTypeId, stRows.map((s) => s.id)))
++    : [];
++
++  await Promise.all([
++    ...allItems.map((row) =>
++      db
++        .update(serviceItemsTable)
++        .set({ itemTotal: String(lineById.get(row.id)?.lineTotal ?? 0), updatedAt: new Date() })
++        .where(eq(serviceItemsTable.id, row.id))
++    ),
++    ...stRows.map((row) =>
++      db
++        .update(serviceTypesTable)
++        .set({
++          serviceTypeTotalCharges: String(pricing.serviceTypeTotals[row.id]?.charges ?? 0),
++          serviceTypeTotalCost: String(pricing.serviceTypeTotals[row.id]?.cost ?? 0),
++          updatedAt: new Date(),
++        })
++        .where(eq(serviceTypesTable.id, row.id))
++    ),
++    ...menuIds.map((row) =>
++      db
++        .update(functionMenusTable)
++        .set({
++          menuTotalCharges: String(pricing.menuTotals[row.id]?.charges ?? 0),
++          menuTotalCost: String(pricing.menuTotals[row.id]?.cost ?? 0),
++          updatedAt: new Date(),
++        })
++        .where(eq(functionMenusTable.id, row.id))
++    ),
++  ]);
++
++  return pricing;
++}
++
++/** Resolves the function that owns a service type, for post-mutation rollups. */
++export async function functionIdForServiceType(serviceTypeId: number): Promise<number | null> {
++  const rows = await db
++    .select({ functionId: functionMenusTable.functionId })
++    .from(serviceTypesTable)
++    .innerJoin(functionMenusTable, eq(serviceTypesTable.functionMenuId, functionMenusTable.id))
++    .where(eq(serviceTypesTable.id, serviceTypeId))
++    .limit(1);
++  return rows[0]?.functionId ?? null;
++}
++
++/** Resolves the function that owns a service item, for post-mutation rollups. */
++export async function functionIdForServiceItem(serviceItemId: number): Promise<number | null> {
++  const rows = await db
++    .select({ functionId: functionMenusTable.functionId })
++    .from(serviceItemsTable)
++    .innerJoin(serviceTypesTable, eq(serviceItemsTable.serviceTypeId, serviceTypesTable.id))
++    .innerJoin(functionMenusTable, eq(serviceTypesTable.functionMenuId, functionMenusTable.id))
++    .where(eq(serviceItemsTable.id, serviceItemId))
++    .limit(1);
++  return rows[0]?.functionId ?? null;
++}
+-- 
+2.43.0
+
+
+From e2772624de9a88564df313feb2b6fd4178a21268 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:45:30 +0000
+Subject: [PATCH 2/6] Route all money through the pricing engine, and honour
+ item selection
+
+Attaching a menu template billed the entire catalogue as if the client had
+ordered every item on it. Function 1 has 77 items across 7 menus of which
+exactly ONE is selected; the app charged the sum of all 77 ($6,053.00)
+instead of the one selected item ($160.00) -- a 37x overbill. The
+`selected` column already existed and was returned by the API; no consumer
+ever filtered on it.
+
+  * financials / functionFinancials now delegate to the pricing engine.
+  * GET /functions/:id/menus overlays server-computed line, service-type and
+    menu totals plus selected/total item counts, so the client never does
+    money arithmetic.
+  * Applying a menu template now copies `cost` from the catalog alongside
+    price and revenue center -- without it every margin reads 100% -- and
+    writes selected=false explicitly: a template makes items AVAILABLE, not
+    ordered.
+  * Copying a menu preserves selection, quantities and hourly-charge fields;
+    previously duplicating a priced menu silently zeroed it.
+  * POST /functions/:id/post captures a real financial snapshot instead of
+    writing zeros, so the Event Lifecycle snapshot column works.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ artifacts/api-server/src/routes/financials.ts | 235 ++++-------------
+ .../src/routes/functionFinancials.ts          | 241 +++++++-----------
+ .../api-server/src/routes/functionServices.ts |  51 +++-
+ 3 files changed, 189 insertions(+), 338 deletions(-)
+
+diff --git a/artifacts/api-server/src/routes/financials.ts b/artifacts/api-server/src/routes/financials.ts
+index fcbf36b..ff4cecc 100644
+--- a/artifacts/api-server/src/routes/financials.ts
++++ b/artifacts/api-server/src/routes/financials.ts
+@@ -2,213 +2,86 @@ import { Router } from "express";
+ import { db } from "@workspace/db";
+ import {
+   eventsTable,
+-  functionsTable,
+-  serviceItemsTable,
+-  serviceTypesTable,
+-  functionMenusTable,
+   revenueCentersTable,
+   serviceFeesTable,
+   paymentsTable,
+-  adjustmentsTable,
+-  additionalFeesTable,
+   depositsScheduledTable,
+-  functionLifecycleHistoryTable,
+ } from "@workspace/db";
+ import { eq, and } from "drizzle-orm";
++import { calculateEventPricing } from "../services/pricing.js";
+ 
+ const router = Router();
+ 
+-// Helper: get all service items for a function with revenue center info
+-async function getFunctionCharges(functionId: number) {
+-  const menus = await db
+-    .select()
+-    .from(functionMenusTable)
+-    .where(eq(functionMenusTable.functionId, functionId));
+-
+-  const charges: Record<string, { charges: number; cost: number }> = {};
+-
+-  for (const menu of menus) {
+-    const serviceTypes = await db
+-      .select()
+-      .from(serviceTypesTable)
+-      .where(eq(serviceTypesTable.functionMenuId, menu.id));
+-
+-    for (const st of serviceTypes) {
+-      const items = await db
+-        .select({
+-          itemTotal: serviceItemsTable.itemTotal,
+-          cost: serviceItemsTable.cost,
+-          quantity: serviceItemsTable.quantity,
+-          revenueCenterId: serviceItemsTable.revenueCenterId,
+-          revenueCenterName: revenueCentersTable.name,
+-        })
+-        .from(serviceItemsTable)
+-        .leftJoin(revenueCentersTable, eq(serviceItemsTable.revenueCenterId, revenueCentersTable.id))
+-        .where(eq(serviceItemsTable.serviceTypeId, st.id));
+-
+-      for (const item of items) {
+-        const rcName = item.revenueCenterName ?? "Other";
+-        if (!charges[rcName]) charges[rcName] = { charges: 0, cost: 0 };
+-        charges[rcName].charges += parseFloat(item.itemTotal ?? "0") || 0;
+-        const qty = parseFloat(item.quantity ?? "1") || 1;
+-        charges[rcName].cost += (parseFloat(item.cost ?? "0") || 0) * qty;
+-      }
+-    }
+-  }
+-
+-  return charges;
+-}
+-
+-type RCBreakdown = { charges: number; adjustedCharges: number; salesTax: number; occupancyTax: number; gratuity: number; total: number; cost: number };
+-
+ // GET /events/:id/financials
++//
++// All money on this response comes from the shared pricing engine so that the
++// figures here are identical to the function financials page and the BEO.
+ router.get("/:id/financials", async (req, res) => {
+   try {
+     const eventId = parseInt(req.params.id);
+     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
+     if (!event) return res.status(404).json({ error: "Event not found" });
+ 
+-    const fns = await db
+-      .select()
+-      .from(functionsTable)
+-      .where(eq(functionsTable.eventId, eventId));
+-
+-    const serviceFeesList = await db.select().from(serviceFeesTable);
+-    const gratuityRate = parseFloat(serviceFeesList.find(f => f.name.includes("22%"))?.ratePercent ?? "0.22");
+-
+-    const revCenters = await db.select().from(revenueCentersTable);
+-    const revCenterMap: Record<number, typeof revCenters[0]> = {};
+-    for (const rc of revCenters) revCenterMap[rc.id] = rc;
+-
+-    // Event-level revenue center aggregation
+-    const eventRCBreakdown: Record<string, RCBreakdown> = {};
+-
+-    const functionRows = await Promise.all(
+-      fns.map(async (fn) => {
+-        const chargesByRC = await getFunctionCharges(fn.id);
+-
+-        // Adjustments reduce charges
+-        const adjs = await db
+-          .select()
+-          .from(adjustmentsTable)
+-          .where(eq(adjustmentsTable.functionId, fn.id));
+-        const totalAdj = adjs.reduce((sum, a) => sum + (parseFloat(a.amount ?? "0") || 0), 0);
+-
+-        let totalCharges = 0;
+-        let totalCost = 0;
+-        let totalSalesTax = 0;
+-        let totalOccupancyTax = 0;
+-
+-        const rcCount = Math.max(1, Object.keys(chargesByRC).length);
+-        for (const [rcName, { charges, cost }] of Object.entries(chargesByRC)) {
+-          const rc = revCenters.find(r => r.name === rcName);
+-          const salesTaxRate = parseFloat(rc?.salesTaxRate ?? "0") || 0;
+-          const occupancyTaxRate = parseFloat(rc?.occupancyTaxRate ?? "0") || 0;
+-          const adjShare = totalAdj / rcCount;
+-          const rcAdjCharges = Math.max(0, charges - adjShare);
+-          const rcGratuity = rcAdjCharges * gratuityRate;
+-          const rcSalesTax = rcAdjCharges * (salesTaxRate / 100);
+-          const rcOccTax = rcAdjCharges * (occupancyTaxRate / 100);
+-          const rcTotal = rcAdjCharges + rcSalesTax + rcOccTax + rcGratuity;
+-
+-          totalCharges += charges;
+-          totalCost += cost;
+-          totalSalesTax += rcSalesTax;
+-          totalOccupancyTax += rcOccTax;
+-
+-          if (!eventRCBreakdown[rcName]) {
+-            eventRCBreakdown[rcName] = { charges: 0, adjustedCharges: 0, salesTax: 0, occupancyTax: 0, gratuity: 0, total: 0, cost: 0 };
+-          }
+-          eventRCBreakdown[rcName].charges += charges;
+-          eventRCBreakdown[rcName].adjustedCharges += rcAdjCharges;
+-          eventRCBreakdown[rcName].salesTax += rcSalesTax;
+-          eventRCBreakdown[rcName].occupancyTax += rcOccTax;
+-          eventRCBreakdown[rcName].gratuity += rcGratuity;
+-          eventRCBreakdown[rcName].total += rcTotal;
+-          eventRCBreakdown[rcName].cost += cost;
+-        }
+-
+-        const adjustedCharges = Math.max(0, totalCharges - totalAdj);
+-        const gratuity = adjustedCharges * gratuityRate;
+-        const total = adjustedCharges + totalSalesTax + totalOccupancyTax + gratuity;
+-        const margin = adjustedCharges - totalCost;
+-        const marginPercent = adjustedCharges > 0 ? (margin / adjustedCharges) * 100 : 0;
+-
+-        return {
+-          functionId: fn.id,
+-          functionType: fn.functionType,
+-          functionDate: fn.functionDate,
+-          charges: Math.round(totalCharges * 100) / 100,
+-          adjustedCharges: Math.round(adjustedCharges * 100) / 100,
+-          salesTax: Math.round(totalSalesTax * 100) / 100,
+-          occupancyTax: Math.round(totalOccupancyTax * 100) / 100,
+-          gratuity: Math.round(gratuity * 100) / 100,
+-          total: Math.round(total * 100) / 100,
+-          cost: Math.round(totalCost * 100) / 100,
+-          margin: Math.round(margin * 100) / 100,
+-          marginPercent: Math.round(marginPercent * 100) / 100,
+-        };
+-      })
+-    );
+-
+-    const revenueCenterBreakdown = Object.entries(eventRCBreakdown)
+-      .sort((a, b) => b[1].charges - a[1].charges)
+-      .map(([name, data]) => ({
+-        revenueCenter: name,
+-        charges: Math.round(data.charges * 100) / 100,
+-        adjustedCharges: Math.round(data.adjustedCharges * 100) / 100,
+-        salesTax: Math.round(data.salesTax * 100) / 100,
+-        occupancyTax: Math.round(data.occupancyTax * 100) / 100,
+-        gratuity: Math.round(data.gratuity * 100) / 100,
+-        total: Math.round(data.total * 100) / 100,
+-        cost: Math.round(data.cost * 100) / 100,
+-      }));
+-
+-    const totals = functionRows.reduce(
+-      (acc, fn) => ({
+-        charges: acc.charges + fn.charges,
+-        adjustedCharges: acc.adjustedCharges + fn.adjustedCharges,
+-        salesTax: acc.salesTax + fn.salesTax,
+-        occupancyTax: acc.occupancyTax + fn.occupancyTax,
+-        gratuity: acc.gratuity + fn.gratuity,
+-        total: acc.total + fn.total,
+-        cost: acc.cost + fn.cost,
+-        margin: acc.margin + fn.margin,
+-        marginPercent: 0,
+-      }),
+-      { charges: 0, adjustedCharges: 0, salesTax: 0, occupancyTax: 0, gratuity: 0, total: 0, cost: 0, margin: 0, marginPercent: 0 }
+-    );
+-    if (totals.adjustedCharges > 0) {
+-      totals.marginPercent = Math.round((totals.margin / totals.adjustedCharges) * 10000) / 100;
+-    }
+-
+-    const payments = await db
+-      .select()
+-      .from(paymentsTable)
+-      .where(eq(paymentsTable.relatedId, eventId));
+-    const eventPayments = payments.filter(p => p.relatedType === "Event");
+-    const paymentsReceived = eventPayments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount ?? "0") || 0), 0);
+-    const balanceDue = totals.total - paymentsReceived;
+-
+-    const deposits = await db
+-      .select()
+-      .from(depositsScheduledTable)
+-      .where(and(eq(depositsScheduledTable.relatedType, "Event"), eq(depositsScheduledTable.relatedId, eventId)));
++    const pricing = await calculateEventPricing(eventId);
++
++    const functionRows = pricing.functions.map((fp) => ({
++      functionId: fp.functionId,
++      functionType: fp.functionType,
++      functionDate: fp.functionDate,
++      charges: fp.totals.charges,
++      adjustedCharges: fp.totals.adjustedCharges,
++      salesTax: fp.totals.salesTax,
++      occupancyTax: fp.totals.occupancyTax,
++      serviceCharge: fp.totals.serviceCharge,
++      gratuity: fp.totals.gratuity,
++      total: fp.totals.total,
++      cost: fp.totals.cost,
++      margin: fp.totals.margin,
++      marginPercent: fp.totals.marginPercent,
++    }));
++
++    const revenueCenterBreakdown = pricing.byRevenueCenter.map((rc) => ({
++      revenueCenter: rc.revenueCenterName,
++      revenueCenterId: rc.revenueCenterId,
++      charges: rc.charges,
++      adjustedCharges: rc.adjustedCharges,
++      salesTax: rc.salesTax,
++      occupancyTax: rc.occupancyTax,
++      serviceCharge: rc.serviceCharge,
++      gratuity: rc.gratuity,
++      total: rc.total,
++      cost: rc.cost,
++      margin: rc.margin,
++      marginPercent: rc.marginPercent,
++    }));
++
++    const [revCenters, serviceFeesList, payments, deposits] = await Promise.all([
++      db.select().from(revenueCentersTable),
++      db.select().from(serviceFeesTable),
++      db.select().from(paymentsTable).where(eq(paymentsTable.relatedId, eventId)),
++      db
++        .select()
++        .from(depositsScheduledTable)
++        .where(and(eq(depositsScheduledTable.relatedType, "Event"), eq(depositsScheduledTable.relatedId, eventId))),
++    ]);
++
++    const eventPayments = payments.filter((p) => (p.relatedType ?? "").toLowerCase() === "event");
+ 
+     res.json({
+       eventId,
+       eventName: event.eventName,
+       functions: functionRows,
+-      totals: Object.fromEntries(
+-        Object.entries(totals).map(([k, v]) => [k, Math.round((v as number) * 100) / 100])
+-      ),
++      totals: pricing.totals,
+       revenueCenterBreakdown,
+-      paymentsReceived: Math.round(paymentsReceived * 100) / 100,
+-      balanceDue: Math.round(balanceDue * 100) / 100,
++      paymentsReceived: pricing.paymentsReceived,
++      balanceDue: pricing.balanceDue,
+       payments: eventPayments,
+       depositsScheduled: deposits,
+       taxRates: revCenters,
+       serviceFees: serviceFeesList,
++      // Surfaced in the UI so unconfigured rates are visible rather than
++      // silently producing $0 tax on a client-facing document.
++      warnings: pricing.warnings,
+     });
+   } catch (err) {
+     req.log.error(err);
+diff --git a/artifacts/api-server/src/routes/functionFinancials.ts b/artifacts/api-server/src/routes/functionFinancials.ts
+index 67c36ba..33125ec 100644
+--- a/artifacts/api-server/src/routes/functionFinancials.ts
++++ b/artifacts/api-server/src/routes/functionFinancials.ts
+@@ -2,9 +2,6 @@ import { Router } from "express";
+ import { db } from "@workspace/db";
+ import {
+   functionsTable,
+-  functionMenusTable,
+-  serviceTypesTable,
+-  serviceItemsTable,
+   revenueCentersTable,
+   serviceFeesTable,
+   paymentsTable,
+@@ -14,173 +11,105 @@ import {
+   functionLifecycleHistoryTable,
+ } from "@workspace/db";
+ import { eq, and } from "drizzle-orm";
++import { calculateFunctionPricing } from "../services/pricing.js";
+ 
+ const router = Router();
+ 
+ // GET /functions/:id/financials
++//
++// Every figure comes from the shared pricing engine, so this page, the event
++// financials page, the services builder and the BEO cannot disagree.
+ router.get("/:id/financials", async (req, res) => {
+   try {
+     const functionId = parseInt(req.params.id);
+     const fn = await db.query.functionsTable.findFirst({ where: eq(functionsTable.id, functionId) });
+     if (!fn) return res.status(404).json({ error: "Function not found" });
+ 
+-    const revCenters = await db.select().from(revenueCentersTable);
+-    const serviceFeesList = await db.select().from(serviceFeesTable);
+-    const gratuityRate = parseFloat(serviceFeesList.find(f => f.name.includes("22%"))?.ratePercent ?? "0.22");
+-
+-    // Build revenue breakdown per revenue center
+-    const menus = await db
+-      .select()
+-      .from(functionMenusTable)
+-      .where(eq(functionMenusTable.functionId, functionId));
+-
+-    const chargesByRC: Record<string, { charges: number; cost: number; rcId?: number }> = {};
+-
+-    for (const menu of menus) {
+-      const serviceTypes = await db
++    const pricing = await calculateFunctionPricing(functionId);
++
++    const revenueBreakdown = pricing.byRevenueCenter.map((rc) => ({
++      revenueCenterId: rc.revenueCenterId,
++      revenueCenterName: rc.revenueCenterName,
++      charges: rc.charges,
++      adjustments: rc.adjustments,
++      adjustedCharges: rc.adjustedCharges,
++      serviceCharge: rc.serviceCharge,
++      gratuity: rc.gratuity,
++      salesTax: rc.salesTax,
++      occupancyTax: rc.occupancyTax,
++      total: rc.total,
++      cost: rc.cost,
++      margin: rc.margin,
++      marginPercent: rc.marginPercent,
++    }));
++
++    const [adjs, additionalFees, payments, deposits, lifecycle] = await Promise.all([
++      db
++        .select({
++          id: adjustmentsTable.id,
++          functionId: adjustmentsTable.functionId,
++          date: adjustmentsTable.date,
++          amount: adjustmentsTable.amount,
++          revenueCenterId: adjustmentsTable.revenueCenterId,
++          appliedRates: adjustmentsTable.appliedRates,
++          description: adjustmentsTable.description,
++          salesperson: adjustmentsTable.salesperson,
++          revenueCenterName: revenueCentersTable.name,
++        })
++        .from(adjustmentsTable)
++        .leftJoin(revenueCentersTable, eq(adjustmentsTable.revenueCenterId, revenueCentersTable.id))
++        .where(eq(adjustmentsTable.functionId, functionId)),
++      db
++        .select({
++          id: additionalFeesTable.id,
++          functionId: additionalFeesTable.functionId,
++          date: additionalFeesTable.date,
++          amount: additionalFeesTable.amount,
++          serviceFeeId: additionalFeesTable.serviceFeeId,
++          description: additionalFeesTable.description,
++          revenueCenterId: additionalFeesTable.revenueCenterId,
++          salesperson: additionalFeesTable.salesperson,
++          serviceFeeName: serviceFeesTable.name,
++          revenueCenterName: revenueCentersTable.name,
++        })
++        .from(additionalFeesTable)
++        .leftJoin(serviceFeesTable, eq(additionalFeesTable.serviceFeeId, serviceFeesTable.id))
++        .leftJoin(revenueCentersTable, eq(additionalFeesTable.revenueCenterId, revenueCentersTable.id))
++        .where(eq(additionalFeesTable.functionId, functionId)),
++      db
+         .select()
+-        .from(serviceTypesTable)
+-        .where(eq(serviceTypesTable.functionMenuId, menu.id));
+-
+-      for (const st of serviceTypes) {
+-        const items = await db
+-          .select({
+-            itemTotal: serviceItemsTable.itemTotal,
+-            cost: serviceItemsTable.cost,
+-            quantity: serviceItemsTable.quantity,
+-            revenueCenterId: serviceItemsTable.revenueCenterId,
+-            revenueCenterName: revenueCentersTable.name,
+-          })
+-          .from(serviceItemsTable)
+-          .leftJoin(revenueCentersTable, eq(serviceItemsTable.revenueCenterId, revenueCentersTable.id))
+-          .where(eq(serviceItemsTable.serviceTypeId, st.id));
+-
+-        for (const item of items) {
+-          const rcName = item.revenueCenterName ?? "Other";
+-          if (!chargesByRC[rcName]) chargesByRC[rcName] = { charges: 0, cost: 0, rcId: item.revenueCenterId ?? undefined };
+-          chargesByRC[rcName].charges += parseFloat(item.itemTotal ?? "0") || 0;
+-          const qty = parseFloat(item.quantity ?? "1") || 1;
+-          chargesByRC[rcName].cost += (parseFloat(item.cost ?? "0") || 0) * qty;
+-        }
+-      }
+-    }
+-
+-    // Adjustments
+-    const adjs = await db
+-      .select({
+-        id: adjustmentsTable.id,
+-        functionId: adjustmentsTable.functionId,
+-        date: adjustmentsTable.date,
+-        amount: adjustmentsTable.amount,
+-        revenueCenterId: adjustmentsTable.revenueCenterId,
+-        appliedRates: adjustmentsTable.appliedRates,
+-        description: adjustmentsTable.description,
+-        salesperson: adjustmentsTable.salesperson,
+-        revenueCenterName: revenueCentersTable.name,
+-      })
+-      .from(adjustmentsTable)
+-      .leftJoin(revenueCentersTable, eq(adjustmentsTable.revenueCenterId, revenueCentersTable.id))
+-      .where(eq(adjustmentsTable.functionId, functionId));
+-
+-    const additionalFees = await db
+-      .select({
+-        id: additionalFeesTable.id,
+-        functionId: additionalFeesTable.functionId,
+-        date: additionalFeesTable.date,
+-        amount: additionalFeesTable.amount,
+-        serviceFeeId: additionalFeesTable.serviceFeeId,
+-        description: additionalFeesTable.description,
+-        revenueCenterId: additionalFeesTable.revenueCenterId,
+-        salesperson: additionalFeesTable.salesperson,
+-        serviceFeeName: serviceFeesTable.name,
+-        revenueCenterName: revenueCentersTable.name,
+-      })
+-      .from(additionalFeesTable)
+-      .leftJoin(serviceFeesTable, eq(additionalFeesTable.serviceFeeId, serviceFeesTable.id))
+-      .leftJoin(revenueCentersTable, eq(additionalFeesTable.revenueCenterId, revenueCentersTable.id))
+-      .where(eq(additionalFeesTable.functionId, functionId));
+-
+-    const totalAdjustments = adjs.reduce((sum, a) => sum + (parseFloat(a.amount ?? "0") || 0), 0);
+-    const numRCs = Math.max(Object.keys(chargesByRC).length, 1);
+-
+-    // Build per-RC breakdown
+-    const revenueBreakdown = Object.entries(chargesByRC).map(([rcName, { charges, cost, rcId }]) => {
+-      const rc = revCenters.find(r => r.name === rcName);
+-      const salesTaxRate = (parseFloat(rc?.salesTaxRate ?? "0") || 0) / 100;
+-      const occupancyTaxRate = (parseFloat(rc?.occupancyTaxRate ?? "0") || 0) / 100;
+-      const rcAdj = totalAdjustments / numRCs;
+-      const adjustedCharges = Math.max(0, charges - rcAdj);
+-      const salesTax = adjustedCharges * salesTaxRate;
+-      const occupancyTax = adjustedCharges * occupancyTaxRate;
+-      const gratuity = adjustedCharges * gratuityRate;
+-      const total = adjustedCharges + salesTax + occupancyTax + gratuity;
+-      const margin = adjustedCharges - cost;
+-      const marginPercent = adjustedCharges > 0 ? (margin / adjustedCharges) * 100 : 0;
+-      return {
+-        revenueCenterName: rcName,
+-        charges: Math.round(charges * 100) / 100,
+-        adjustments: Math.round(rcAdj * 100) / 100,
+-        adjustedCharges: Math.round(adjustedCharges * 100) / 100,
+-        salesTax: Math.round(salesTax * 100) / 100,
+-        occupancyTax: Math.round(occupancyTax * 100) / 100,
+-        gratuity: Math.round(gratuity * 100) / 100,
+-        total: Math.round(total * 100) / 100,
+-        cost: Math.round(cost * 100) / 100,
+-        margin: Math.round(margin * 100) / 100,
+-        marginPercent: Math.round(marginPercent * 100) / 100,
+-      };
+-    });
+-
+-    const totals = revenueBreakdown.reduce(
+-      (acc, r) => ({
+-        charges: acc.charges + r.charges,
+-        adjustedCharges: acc.adjustedCharges + r.adjustedCharges,
+-        salesTax: acc.salesTax + r.salesTax,
+-        occupancyTax: acc.occupancyTax + r.occupancyTax,
+-        gratuity: acc.gratuity + r.gratuity,
+-        total: acc.total + r.total,
+-        cost: acc.cost + r.cost,
+-        margin: acc.margin + r.margin,
+-        marginPercent: 0,
+-      }),
+-      { charges: 0, adjustedCharges: 0, salesTax: 0, occupancyTax: 0, gratuity: 0, total: 0, cost: 0, margin: 0, marginPercent: 0 }
+-    );
+-    if (totals.adjustedCharges > 0) {
+-      totals.marginPercent = Math.round((totals.margin / totals.adjustedCharges) * 10000) / 100;
+-    }
+-
+-    const payments = await db
+-      .select()
+-      .from(paymentsTable)
+-      .where(and(eq(paymentsTable.relatedType, "Function"), eq(paymentsTable.relatedId, functionId)));
+-    const paymentsReceived = payments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount ?? "0") || 0), 0);
+-    const balanceDue = totals.total - paymentsReceived;
+-
+-    const deposits = await db
+-      .select()
+-      .from(depositsScheduledTable)
+-      .where(and(eq(depositsScheduledTable.relatedType, "Function"), eq(depositsScheduledTable.relatedId, functionId)));
++        .from(paymentsTable)
++        .where(and(eq(paymentsTable.relatedType, "Function"), eq(paymentsTable.relatedId, functionId))),
++      db
++        .select()
++        .from(depositsScheduledTable)
++        .where(
++          and(eq(depositsScheduledTable.relatedType, "Function"), eq(depositsScheduledTable.relatedId, functionId))
++        ),
++      db
++        .select()
++        .from(functionLifecycleHistoryTable)
++        .where(eq(functionLifecycleHistoryTable.functionId, functionId)),
++    ]);
+ 
+-    const lifecycle = await db
+-      .select()
+-      .from(functionLifecycleHistoryTable)
+-      .where(eq(functionLifecycleHistoryTable.functionId, functionId));
++    const paymentsReceived =
++      Math.round(payments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount ?? "0") || 0), 0) * 100) / 100;
+ 
+     res.json({
+       functionId,
+       functionType: fn.functionType ?? "Function",
+       functionDate: fn.functionDate,
+       revenueBreakdown,
+-      totals: Object.fromEntries(
+-        Object.entries(totals).map(([k, v]) => [k, Math.round((v as number) * 100) / 100])
+-      ),
+-      paymentsReceived: Math.round(paymentsReceived * 100) / 100,
+-      balanceDue: Math.round(balanceDue * 100) / 100,
++      totals: pricing.totals,
++      lines: pricing.lines,
++      paymentsReceived,
++      balanceDue: Math.round((pricing.totals.total - paymentsReceived) * 100) / 100,
+       payments,
+       adjustments: adjs,
+       additionalFees,
+       depositsScheduled: deposits,
+       lifecycleHistory: lifecycle,
++      warnings: pricing.warnings,
+     });
+   } catch (err) {
+     req.log.error(err);
+@@ -189,15 +118,19 @@ router.get("/:id/financials", async (req, res) => {
+ });
+ 
+ // POST /functions/:id/post — lock financial figures
++//
++// Captures a real snapshot of the function's numbers at the moment of posting.
++// This is what the Event Lifecycle "Financial Snapshot" column reads.
+ router.post("/:id/post", async (req, res) => {
+   try {
+     const functionId = parseInt(req.params.id);
+     const today = new Date().toISOString().slice(0, 10);
+ 
+-    // Get current financial snapshot
+     const fn = await db.query.functionsTable.findFirst({ where: eq(functionsTable.id, functionId) });
+     if (!fn) return res.status(404).json({ error: "Function not found" });
+ 
++    const pricing = await calculateFunctionPricing(functionId);
++
+     const [snapshot] = await db
+       .insert(functionLifecycleHistoryTable)
+       .values({
+@@ -205,12 +138,12 @@ router.post("/:id/post", async (req, res) => {
+         eventStatus: "Event Order",
+         date: today,
+         salesperson: "System",
+-        forecastedCharges: "0",
+-        charges: "0",
+-        adjustedCharges: "0",
+-        cost: "0",
+-        margin: "0",
+-        marginPercent: "0",
++        forecastedCharges: String(pricing.totals.charges),
++        charges: String(pricing.totals.charges),
++        adjustedCharges: String(pricing.totals.adjustedCharges),
++        cost: String(pricing.totals.cost),
++        margin: String(pricing.totals.margin),
++        marginPercent: String(pricing.totals.marginPercent),
+       })
+       .returning();
+ 
+diff --git a/artifacts/api-server/src/routes/functionServices.ts b/artifacts/api-server/src/routes/functionServices.ts
+index 078b528..ebe5418 100644
+--- a/artifacts/api-server/src/routes/functionServices.ts
++++ b/artifacts/api-server/src/routes/functionServices.ts
+@@ -10,6 +10,7 @@ import {
+   revenueCentersTable,
+ } from "@workspace/db";
+ import { eq } from "drizzle-orm";
++import { calculateFunctionPricing } from "../services/pricing.js";
+ 
+ const router = Router();
+ 
+@@ -76,7 +77,39 @@ router.get("/:id/menus", async (req, res) => {
+       })
+     );
+ 
+-    res.json(result);
++    // Overlay server-computed money so the client never has to calculate it.
++    // Line totals reflect only SELECTED items; unselected items are priced at
++    // zero because attaching a template makes an item available, not ordered.
++    const pricing = await calculateFunctionPricing(functionId);
++    const lineById = new Map(pricing.lines.map((l) => [l.serviceItemId, l]));
++
++    const priced = result.map((menu) => {
++      const mt = pricing.menuTotals[menu.id] ?? { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
++      return {
++        ...menu,
++        menuTotalCharges: String(mt.charges),
++        menuTotalCost: String(mt.cost),
++        selectedCount: mt.selectedCount,
++        itemCount: mt.itemCount,
++        serviceTypes: (menu.serviceTypes ?? []).map((st) => {
++          const stt = pricing.serviceTypeTotals[st.id] ?? { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
++          return {
++            ...st,
++            serviceTypeTotalCharges: String(stt.charges),
++            serviceTypeTotalCost: String(stt.cost),
++            selectedCount: stt.selectedCount,
++            itemCount: stt.itemCount,
++            items: (st.items ?? []).map((item) => ({
++              ...item,
++              itemTotal: String(lineById.get(item.id)?.lineTotal ?? 0),
++              lineCost: String(lineById.get(item.id)?.lineCost ?? 0),
++            })),
++          };
++        }),
++      };
++    });
++
++    res.json(priced);
+   } catch (err) {
+     req.log.error(err);
+     res.status(500).json({ error: "Internal server error" });
+@@ -131,6 +164,8 @@ router.post("/:id/add-menu-template", async (req, res) => {
+         sortOrder: menuTemplateItemsTable.sortOrder,
+         itemName: catalogItemsTable.name,
+         catalogPrice: catalogItemsTable.price,
++        // Cost must be carried across or margin reporting is dead on arrival.
++        catalogCost: catalogItemsTable.cost,
+         revenueCenterId: catalogItemsTable.revenueCenterId,
+       })
+       .from(menuTemplateItemsTable)
+@@ -149,7 +184,6 @@ router.post("/:id/add-menu-template", async (req, res) => {
+       for (const ti of templateItems) {
+         const price = ti.priceOverride ?? ti.catalogPrice ?? null;
+         const qty = ti.quantity ?? "1";
+-        const itemTotal = price ? (parseFloat(qty) * parseFloat(price)).toFixed(2) : null;
+         const [newItem] = await db
+           .insert(serviceItemsTable)
+           .values({
+@@ -158,9 +192,13 @@ router.post("/:id/add-menu-template", async (req, res) => {
+             notes: ti.notes,
+             quantity: qty,
+             aLaCartePrice: price,
++            cost: ti.catalogCost,
+             revenueCenterId: ti.revenueCenterId,
+             sectionName: ti.sectionName,
+-            itemTotal,
++            // Attaching a template makes items AVAILABLE, not ordered. Nothing
++            // is billable until someone ticks it in the services builder.
++            selected: false,
++            itemTotal: "0.00",
+           })
+           .returning();
+         insertedItems.push(newItem);
+@@ -261,6 +299,13 @@ router.post("/:id/menus/:menuId/copy", async (req, res) => {
+             appliedRates: item.appliedRates,
+             sectionName: item.sectionName,
+             revenueCenterId: item.revenueCenterId,
++            // A copied menu must keep the same selections, otherwise
++            // duplicating a priced menu silently zeroes it out.
++            selected: item.selected,
++            chargeHourly: item.chargeHourly,
++            numHours: item.numHours,
++            markItemInternal: item.markItemInternal,
++            quantityPrecision: item.quantityPrecision,
+           })
+           .returning();
+         newItems.push(newItem);
+-- 
+2.43.0
+
+
+From 0ed6bb36c03bbb334f8a6a757e9a2c3cbc72b550 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:45:30 +0000
+Subject: [PATCH 3/6] Stop date-only values shifting a day across screens
+
+Event 1 is stored as 2026-05-23 to 2026-05-25. The events list and the event
+detail header rendered it as May 22-24, while the timeline, reports and BEO
+rendered it correctly -- so the same event showed two different date ranges
+depending on which screen you were on.
+
+Cause: `new Date("2026-05-23")` parses as UTC midnight, and formatting that
+in any timezone west of UTC yields the previous day. A few screens already
+worked around it with `+ "T00:00:00"`; most did not.
+
+Adds lib/date.ts, which parses date-only strings at LOCAL midnight, and
+routes every calendar-date display through it. True timestamps (createdAt,
+updatedAt) are left timezone-aware, as they should be.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ artifacts/venuecloud/src/lib/date.ts          | 113 ++++++++++++++++++
+ artifacts/venuecloud/src/pages/Dashboard.tsx  |   3 +-
+ .../src/pages/accounts/AccountDetail.tsx      |   3 +-
+ .../src/pages/contacts/ContactDetail.tsx      |   3 +-
+ .../src/pages/events/EventCalendar.tsx        |  13 +-
+ .../src/pages/events/EventDetail.tsx          |   5 +-
+ .../src/pages/events/EventsList.tsx           |   5 +-
+ .../venuecloud/src/pages/leads/LeadDetail.tsx |   5 +-
+ .../venuecloud/src/pages/leads/LeadsList.tsx  |   3 +-
+ .../venuecloud/src/pages/tasks/TasksList.tsx  |   3 +-
+ 10 files changed, 139 insertions(+), 17 deletions(-)
+ create mode 100644 artifacts/venuecloud/src/lib/date.ts
+
+diff --git a/artifacts/venuecloud/src/lib/date.ts b/artifacts/venuecloud/src/lib/date.ts
+new file mode 100644
+index 0000000..ab27921
+--- /dev/null
++++ b/artifacts/venuecloud/src/lib/date.ts
+@@ -0,0 +1,113 @@
++/**
++ * Date-only helpers.
++ *
++ * The API stores calendar dates ("2026-05-23") as plain strings with no
++ * timezone component. Passing such a string straight into `new Date()` makes
++ * JavaScript interpret it as UTC midnight; formatting that in any timezone west
++ * of UTC then renders the PREVIOUS day. That is why an event stored as
++ * May 23-25 was showing as May 22-24 on the events list and detail header.
++ *
++ * Always route calendar dates through these helpers. Reserve `new Date()` for
++ * true instants such as createdAt / updatedAt, which really are timezone-aware.
++ */
++
++export type DateOnly = string; // "YYYY-MM-DD"
++
++const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
++
++/**
++ * Parses "YYYY-MM-DD" into a Date anchored at LOCAL midnight, so the calendar
++ * day never shifts. Values that already carry a time component are passed
++ * through to the normal Date constructor.
++ */
++export function parseDateOnly(value: string | null | undefined): Date | null {
++  if (!value) return null;
++  const match = DATE_ONLY.exec(value.trim());
++  if (match) {
++    const [, y, m, d] = match;
++    return new Date(Number(y), Number(m) - 1, Number(d));
++  }
++  const parsed = new Date(value);
++  return Number.isNaN(parsed.getTime()) ? null : parsed;
++}
++
++/** Serialises a Date back to "YYYY-MM-DD" using its LOCAL calendar day. */
++export function toDateOnly(date: Date | null | undefined): DateOnly | null {
++  if (!date || Number.isNaN(date.getTime())) return null;
++  const y = date.getFullYear();
++  const m = String(date.getMonth() + 1).padStart(2, "0");
++  const d = String(date.getDate()).padStart(2, "0");
++  return `${y}-${m}-${d}`;
++}
++
++const PRESETS = {
++  /** 5/23/2026 */
++  short: { year: "numeric", month: "numeric", day: "numeric" },
++  /** May 23, 2026 */
++  medium: { year: "numeric", month: "short", day: "numeric" },
++  /** May 23, 2026 */
++  long: { year: "numeric", month: "long", day: "numeric" },
++  /** Saturday, May 23, 2026 */
++  full: { weekday: "long", year: "numeric", month: "long", day: "numeric" },
++  /** May 23 */
++  dayMonth: { month: "short", day: "numeric" },
++} satisfies Record<string, Intl.DateTimeFormatOptions>;
++
++export type DateStyle = keyof typeof PRESETS;
++
++/** Formats a date-only string for display. Returns `fallback` when empty. */
++export function formatDateOnly(
++  value: string | null | undefined,
++  style: DateStyle = "medium",
++  fallback = "—"
++): string {
++  const date = parseDateOnly(value);
++  if (!date) return fallback;
++  return date.toLocaleDateString("en-US", PRESETS[style]);
++}
++
++/**
++ * Formats a start/end pair, collapsing a single-day range to one date.
++ * e.g. "May 23, 2026 – May 25, 2026" or just "May 23, 2026".
++ */
++export function formatDateRange(
++  start: string | null | undefined,
++  end: string | null | undefined,
++  style: DateStyle = "medium",
++  fallback = "TBD"
++): string {
++  const s = formatDateOnly(start, style, "");
++  if (!s) return fallback;
++  const e = formatDateOnly(end, style, "");
++  if (!e || e === s) return s;
++  return `${s} – ${e}`;
++}
++
++/** True when the date-only value is strictly before today (local). */
++export function isPastDateOnly(value: string | null | undefined): boolean {
++  const date = parseDateOnly(value);
++  if (!date) return false;
++  const today = new Date();
++  today.setHours(0, 0, 0, 0);
++  return date.getTime() < today.getTime();
++}
++
++/** Midnight-normalised copy, for day-level comparisons in calendar grids. */
++export function startOfDay(date: Date): Date {
++  const copy = new Date(date);
++  copy.setHours(0, 0, 0, 0);
++  return copy;
++}
++
++/** Today as a date-only string, for defaulting form inputs. */
++export function todayDateOnly(): DateOnly {
++  return toDateOnly(new Date())!;
++}
++
++/** Inclusive day count between two date-only values; null when unparseable. */
++export function daysBetween(start: string | null | undefined, end: string | null | undefined): number | null {
++  const s = parseDateOnly(start);
++  const e = parseDateOnly(end);
++  if (!s || !e) return null;
++  return Math.round((startOfDay(e).getTime() - startOfDay(s).getTime()) / 86_400_000);
++}
+diff --git a/artifacts/venuecloud/src/pages/Dashboard.tsx b/artifacts/venuecloud/src/pages/Dashboard.tsx
+index d91b4ea..0518daf 100644
+--- a/artifacts/venuecloud/src/pages/Dashboard.tsx
++++ b/artifacts/venuecloud/src/pages/Dashboard.tsx
+@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
+ import { Skeleton } from "@/components/ui/skeleton";
+ import { Link } from "wouter";
+ import { CalendarDays, Activity } from "lucide-react";
++import { formatDateOnly } from "@/lib/date";
+ 
+ type UpcomingEvent = {
+   id: number;
+@@ -170,7 +171,7 @@ export default function Dashboard() {
+                       <Link href={`/events/${e.id}`} className="font-medium text-primary hover:underline">{e.eventName}</Link>
+                     </TableCell>
+                     <TableCell className="text-muted-foreground">
+-                      {e.startDate ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
++                      {formatDateOnly(e.startDate, "medium", "TBD")}
+                     </TableCell>
+                     <TableCell>
+                       <Badge variant="outline" className={`text-xs ${getStatusColor(e.eventStatus)}`}>{e.eventStatus}</Badge>
+diff --git a/artifacts/venuecloud/src/pages/accounts/AccountDetail.tsx b/artifacts/venuecloud/src/pages/accounts/AccountDetail.tsx
+index 8bd4543..b5a378a 100644
+--- a/artifacts/venuecloud/src/pages/accounts/AccountDetail.tsx
++++ b/artifacts/venuecloud/src/pages/accounts/AccountDetail.tsx
+@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
+ import {
+   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+ } from "@/components/ui/table";
++import { formatDateOnly } from "@/lib/date";
+ 
+ const SECTIONS = [
+   "Account Details", "Address Information", "Contacts", "Events", "Leads", "Notes", "Tasks", "Attachments"
+@@ -235,7 +236,7 @@ export default function AccountDetail() {
+                               <Badge variant="outline" className={`text-xs ${getStatusColor(e.eventStatus)}`}>{e.eventStatus}</Badge>
+                             </TableCell>
+                             <TableCell className="text-muted-foreground">
+-                              {e.startDate ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
++                              {formatDateOnly(e.startDate, "medium", "TBD")}
+                             </TableCell>
+                             <TableCell className="text-right text-muted-foreground">{e.estimatedAttendance ?? "—"}</TableCell>
+                             <TableCell className="text-muted-foreground">{e.owner || "—"}</TableCell>
+diff --git a/artifacts/venuecloud/src/pages/contacts/ContactDetail.tsx b/artifacts/venuecloud/src/pages/contacts/ContactDetail.tsx
+index 6938cd3..c530ce7 100644
+--- a/artifacts/venuecloud/src/pages/contacts/ContactDetail.tsx
++++ b/artifacts/venuecloud/src/pages/contacts/ContactDetail.tsx
+@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
+ import {
+   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+ } from "@/components/ui/table";
++import { formatDateOnly } from "@/lib/date";
+ 
+ const SECTIONS = [
+   "Contact Details", "Address Information", "Events", "System Info"
+@@ -215,7 +216,7 @@ export default function ContactDetail() {
+                               <Badge variant="outline" className={`text-xs ${getStatusColor(e.eventStatus)}`}>{e.eventStatus}</Badge>
+                             </TableCell>
+                             <TableCell className="text-muted-foreground">
+-                              {e.startDate ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
++                              {formatDateOnly(e.startDate, "medium", "TBD")}
+                             </TableCell>
+                             <TableCell className="text-right text-muted-foreground">{e.estimatedAttendance ?? "—"}</TableCell>
+                             <TableCell className="text-muted-foreground">{e.owner || "—"}</TableCell>
+diff --git a/artifacts/venuecloud/src/pages/events/EventCalendar.tsx b/artifacts/venuecloud/src/pages/events/EventCalendar.tsx
+index 4065d51..9be676e 100644
+--- a/artifacts/venuecloud/src/pages/events/EventCalendar.tsx
++++ b/artifacts/venuecloud/src/pages/events/EventCalendar.tsx
+@@ -11,6 +11,7 @@ import {
+   startOfWeek, endOfWeek,
+ } from "date-fns";
+ import { CalendarLegend, useLifecycleColors, getStatusColor, StatusBadge } from "@/components/CalendarLegend";
++import { parseDateOnly } from "@/lib/date";
+ 
+ type View = "month" | "week" | "day";
+ type LifecycleColors = ReturnType<typeof useLifecycleColors>;
+@@ -21,8 +22,8 @@ function normDay(d: Date) {
+ 
+ function EventChip({ event, lifecycleColors }: { event: any; lifecycleColors: LifecycleColors }) {
+   const colorStyle = getStatusColor(lifecycleColors, event.eventStatus ?? "");
+-  const startDate = event.startDate ? new Date(event.startDate) : null;
+-  const endDate = event.endDate ? new Date(event.endDate) : null;
++  const startDate = parseDateOnly(event.startDate);
++  const endDate = parseDateOnly(event.endDate);
+ 
+   const dateLabel = startDate
+     ? endDate && format(normDay(endDate), "yyyy-MM-dd") !== format(normDay(startDate), "yyyy-MM-dd")
+@@ -124,8 +125,8 @@ export default function EventCalendar() {
+     return (
+       events?.filter((e) => {
+         if (!e.startDate) return false;
+-        const start = normDay(new Date(e.startDate));
+-        const end = e.endDate ? normDay(new Date(e.endDate)) : start;
++        const start = normDay(parseDateOnly(e.startDate)!);
++        const end = e.endDate ? normDay(parseDateOnly(e.endDate)!) : start;
+         return dayNorm >= start && dayNorm <= end;
+       }) ?? []
+     );
+@@ -295,8 +296,8 @@ export default function EventCalendar() {
+                     </p>
+                     {dayEvents.map((event) => {
+                       const colorStyle = getStatusColor(lifecycleColors, event.eventStatus ?? "");
+-                      const startDate = event.startDate ? new Date(event.startDate) : null;
+-                      const endDate = event.endDate ? new Date(event.endDate) : null;
++                      const startDate = parseDateOnly(event.startDate);
++                      const endDate = parseDateOnly(event.endDate);
+                       const dLabel = startDate
+                         ? endDate && format(normDay(endDate), "yyyy-MM-dd") !== format(normDay(startDate), "yyyy-MM-dd")
+                           ? `${format(startDate, "MMM d")} – ${format(endDate, "MMM d, yyyy")}`
+diff --git a/artifacts/venuecloud/src/pages/events/EventDetail.tsx b/artifacts/venuecloud/src/pages/events/EventDetail.tsx
+index 01542a4..59c9a07 100644
+--- a/artifacts/venuecloud/src/pages/events/EventDetail.tsx
++++ b/artifacts/venuecloud/src/pages/events/EventDetail.tsx
+@@ -51,6 +51,7 @@ import {
+   DropdownMenuTrigger,
+ } from "@/components/ui/dropdown-menu";
+ import { useToast } from "@/hooks/use-toast";
++import { formatDateOnly } from "@/lib/date";
+ 
+ function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
+   return (
+@@ -424,13 +425,13 @@ export default function EventDetail() {
+                       <DetailField label="Start Date">
+                         {event.startDate
+                           ? <Link href={`/events/calendar`} className="text-primary hover:underline font-medium">
+-                              {new Date(event.startDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
++                              {formatDateOnly(event.startDate as string, "long")}
+                             </Link>
+                           : <span className="font-medium">TBD</span>}
+                       </DetailField>
+                       <DetailField label="End Date">
+                         <span className="font-medium">
+-                          {event.endDate ? new Date(event.endDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '—'}
++                          {formatDateOnly(event.endDate as string, "long")}
+                         </span>
+                       </DetailField>
+                       <DetailField label="Event Lifecycle Model">
+diff --git a/artifacts/venuecloud/src/pages/events/EventsList.tsx b/artifacts/venuecloud/src/pages/events/EventsList.tsx
+index 5969971..a9106e2 100644
+--- a/artifacts/venuecloud/src/pages/events/EventsList.tsx
++++ b/artifacts/venuecloud/src/pages/events/EventsList.tsx
+@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Plus, Search, Calendar as CalendarIcon } from "lucide-react";
+ import { useState } from "react";
++import { formatDateOnly } from "@/lib/date";
+ 
+ export function getStatusColor(status: string) {
+   switch (status) {
+@@ -98,8 +99,8 @@ export default function EventsList() {
+                     </TableCell>
+                     <TableCell className="text-muted-foreground">{event.accountName}</TableCell>
+                     <TableCell className="text-sm">
+-                      {event.startDate ? new Date(event.startDate).toLocaleDateString() : 'TBD'}
+-                      {event.endDate && event.endDate !== event.startDate ? ` - ${new Date(event.endDate).toLocaleDateString()}` : ''}
++                      {formatDateOnly(event.startDate, "short", "TBD")}
++                      {event.endDate && event.endDate !== event.startDate ? ` - ${formatDateOnly(event.endDate, "short", "")}` : ''}
+                     </TableCell>
+                     <TableCell>
+                       <Badge variant="outline" className={getStatusColor(event.eventStatus)}>
+diff --git a/artifacts/venuecloud/src/pages/leads/LeadDetail.tsx b/artifacts/venuecloud/src/pages/leads/LeadDetail.tsx
+index 477fc9b..140f52b 100644
+--- a/artifacts/venuecloud/src/pages/leads/LeadDetail.tsx
++++ b/artifacts/venuecloud/src/pages/leads/LeadDetail.tsx
+@@ -14,6 +14,7 @@ import {
+ import { Checkbox } from "@/components/ui/checkbox";
+ import { useUpdateTask, getListTasksQueryKey } from "@workspace/api-client-react";
+ import { useQueryClient } from "@tanstack/react-query";
++import { formatDateOnly } from "@/lib/date";
+ 
+ const SECTIONS = [
+   "Lead Details", "Event Details", "Budget & Value", "Notes", "Tasks", "Communication History"
+@@ -165,7 +166,7 @@ export default function LeadDetail() {
+               <Card>
+                 <CardContent className="p-6 grid grid-cols-2 gap-6">
+                   <Field label="Event Date">
+-                    {lead.eventDate ? new Date(lead.eventDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '-'}
++                    {formatDateOnly(lead.eventDate, "long", "-")}
+                   </Field>
+                   <Field label="Function Type">{lead.functionType || '-'}</Field>
+                   <Field label="Start Time">{lead.startTime || '-'}</Field>
+@@ -283,7 +284,7 @@ export default function LeadDetail() {
+                             </TableCell>
+                             <TableCell>
+                               <span className={isOverdue ? "text-red-600 font-semibold" : "text-muted-foreground"}>
+-                                {task.dueDate ? new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}
++                                {formatDateOnly(task.dueDate, "medium", "-")}
+                               </span>
+                             </TableCell>
+                             <TableCell className="text-muted-foreground">{task.salesperson || "-"}</TableCell>
+diff --git a/artifacts/venuecloud/src/pages/leads/LeadsList.tsx b/artifacts/venuecloud/src/pages/leads/LeadsList.tsx
+index 0ec9148..311bf78 100644
+--- a/artifacts/venuecloud/src/pages/leads/LeadsList.tsx
++++ b/artifacts/venuecloud/src/pages/leads/LeadsList.tsx
+@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Plus, Search } from "lucide-react";
+ import { useState } from "react";
++import { formatDateOnly } from "@/lib/date";
+ 
+ export function getLeadStatusColor(status: string) {
+   switch (status) {
+@@ -88,7 +89,7 @@ export default function LeadsList() {
+                     </TableCell>
+                     <TableCell className="text-muted-foreground">{lead.primaryContactName || '-'}</TableCell>
+                     <TableCell className="text-sm">
+-                      {lead.eventDate ? new Date(lead.eventDate).toLocaleDateString() : 'TBD'}
++                      {formatDateOnly(lead.eventDate, "short", "TBD")}
+                     </TableCell>
+                     <TableCell>
+                       <Badge variant="outline" className={getLeadStatusColor(lead.leadStatus)}>
+diff --git a/artifacts/venuecloud/src/pages/tasks/TasksList.tsx b/artifacts/venuecloud/src/pages/tasks/TasksList.tsx
+index a67b0b4..6d579d2 100644
+--- a/artifacts/venuecloud/src/pages/tasks/TasksList.tsx
++++ b/artifacts/venuecloud/src/pages/tasks/TasksList.tsx
+@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
+ import { Plus, CheckCircle2, ListTodo, AlertCircle, CheckCheck, ClipboardList, User, Calendar } from "lucide-react";
+ import { useQueryClient } from "@tanstack/react-query";
+ import { useState } from "react";
++import { formatDateOnly } from "@/lib/date";
+ 
+ type Folder = "All" | "My" | "Overdue" | "Completed";
+ type Priority = "All" | "High" | "Medium" | "Low";
+@@ -266,7 +267,7 @@ export default function TasksList() {
+                       </TableCell>
+                       <TableCell>
+                         <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>
+-                          {task.dueDate ? new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : '-'}
++                          {formatDateOnly(task.dueDate, "medium", "-")}
+                         </span>
+                         {isOverdue && (
+                           <span className="ml-1.5 text-xs text-red-500">Overdue</span>
+-- 
+2.43.0
+
+
+From 53ce17c6b7b5f984965f2e4b5b41846c294c4d61 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:45:48 +0000
+Subject: [PATCH 4/6] Make the BEO and services builder read money from the
+ server
+
+The BEO hard-coded 8% sales tax, 22% gratuity and a 1.30 multiplier for the
+grand total, and printed every item of every attached menu template. It now:
+
+  * reads charges, service charge, gratuity and taxes from the pricing
+    engine, so it cannot disagree with the financials pages;
+  * lists only items the client actually selected, and omits menus with
+    nothing ordered rather than printing empty sections;
+  * shows the function's room -- Location/Room read `fn.location`, which
+    does not exist; the API has always returned `locationName`. The same
+    typo blanked the location on the function detail page and left the
+    function switcher reading "in TBD".
+
+The services sidebar gains a real breakdown (subtotal / service charge /
+gratuity / tax / grand total) plus a banner surfacing unconfigured-rate
+warnings. The menu editor no longer estimates tax and gratuity with its own
+constants; it shows a selected-item count and defers to the authoritative
+figures.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ .../src/pages/events/FunctionBEO.tsx          | 116 ++++++++++--------
+ .../src/pages/events/FunctionDetail.tsx       |   6 +-
+ .../src/pages/events/FunctionMenuEdit.tsx     |  39 +++---
+ .../src/pages/events/FunctionServices.tsx     |  49 ++++++--
+ 4 files changed, 130 insertions(+), 80 deletions(-)
+
+diff --git a/artifacts/venuecloud/src/pages/events/FunctionBEO.tsx b/artifacts/venuecloud/src/pages/events/FunctionBEO.tsx
+index 7a99767..1182e43 100644
+--- a/artifacts/venuecloud/src/pages/events/FunctionBEO.tsx
++++ b/artifacts/venuecloud/src/pages/events/FunctionBEO.tsx
+@@ -4,7 +4,9 @@ import {
+   useGetEvent,
+   useGetFunction,
+   useGetFunctionMenus,
++  useGetFunctionFinancials,
+ } from "@workspace/api-client-react";
++import { formatDateOnly, formatDateRange } from "@/lib/date";
+ import { Skeleton } from "@/components/ui/skeleton";
+ import { Button } from "@/components/ui/button";
+ import { ArrowLeft, Printer } from "lucide-react";
+@@ -17,10 +19,7 @@ function fmt$(val: string | number | null | undefined): string {
+ }
+ 
+ function fmtDate(d: string | null | undefined): string {
+-  if (!d) return "—";
+-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
+-    weekday: "long", month: "long", day: "numeric", year: "numeric",
+-  });
++  return formatDateOnly(d, "full");
+ }
+ 
+ function fmtTime(t: string | null | undefined): string {
+@@ -32,13 +31,18 @@ function fmtTime(t: string | null | undefined): string {
+   return `${h12}:${m} ${ampm}`;
+ }
+ 
++/**
++ * The server is the single source of truth for money. `itemTotal` already
++ * reflects the shared pricing engine, which prices ONLY selected items — so a
++ * BEO can never again bill an entire menu template as if it had been ordered.
++ */
+ function calcItemTotal(item: any): number {
+-  const stored = parseFloat(String(item.itemTotal ?? "0")) || 0;
+-  if (stored > 0) return stored;
+-  const qty = parseFloat(String(item.quantity ?? "1")) || 1;
+-  const price = parseFloat(String(item.aLaCartePrice ?? "0")) || 0;
+-  const hours = parseFloat(String(item.numHours ?? "1")) || 1;
+-  return item.chargeHourly ? price * hours * qty : price * qty;
++  return parseFloat(String(item.itemTotal ?? "0")) || 0;
++}
++
++/** Items a client should see on the document: chosen, and not staff-internal. */
++function isOnBEO(item: any): boolean {
++  return item?.selected === true && item?.markItemInternal !== true;
+ }
+ 
+ export default function FunctionBEO() {
+@@ -55,6 +59,11 @@ export default function FunctionBEO() {
+   const { data: menus, isLoading: menusLoading } = useGetFunctionMenus(functionId, {
+     query: { enabled: !!functionId } as any,
+   });
++  // Totals, tax and service charges all come from the server so this document
++  // can never disagree with the financials pages.
++  const { data: financials } = useGetFunctionFinancials(functionId, {
++    query: { enabled: !!functionId } as any,
++  });
+ 
+   const isLoading = eventLoading || fnLoading || menusLoading;
+ 
+@@ -76,18 +85,17 @@ export default function FunctionBEO() {
+     );
+   }
+ 
+-  const menusList = (menus as any[]) ?? [];
++  const allMenus = (menus as any[]) ?? [];
++  // A BEO is the order, not the catalogue: menus with nothing selected are
++  // omitted entirely rather than printed as empty sections.
++  const menusList = allMenus.filter((menu: any) =>
++    (menu.serviceTypes ?? []).some((st: any) => (st.items ?? []).some(isOnBEO))
++  );
++  const omittedMenuCount = allMenus.length - menusList.length;
+ 
+-  const grandTotal = menusList.reduce((sum: number, menu: any) => {
+-    const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
+-    if (menuTotal > 0) return sum + menuTotal;
+-    const itemsTotal = (menu.serviceTypes ?? []).reduce((s2: number, st: any) => {
+-      const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
+-      if (stTotal > 0) return s2 + stTotal;
+-      return s2 + (st.items ?? []).reduce((s3: number, item: any) => s3 + calcItemTotal(item), 0);
+-    }, 0);
+-    return sum + itemsTotal;
+-  }, 0);
++  const totals = (financials as any)?.totals;
++  const warnings: string[] = (financials as any)?.warnings ?? [];
++  const grandTotal = Number(totals?.charges ?? 0);
+ 
+   const beoNumber = `BEO-${(fn as any).functionNumber ?? functionId}-${new Date().toISOString().slice(0, 10)}`;
+   const printDate = new Date().toLocaleDateString("en-US", {
+@@ -193,7 +201,7 @@ export default function FunctionBEO() {
+                     ["Function Date", fmtDate((fn as any).functionDate)],
+                     ["Start Time", fmtTime((fn as any).startTime)],
+                     ["End Time", fmtTime((fn as any).endTime)],
+-                    ["Location / Room", (fn as any).location],
++                    ["Location / Room", (fn as any).locationName ?? (fn as any).location],
+                     ["Setup Style", (fn as any).setupStyle],
+                     ["Est. Attendance", (fn as any).estimatedAttendance],
+                     ["Guaranteed", (fn as any).guaranteedAttendance],
+@@ -216,14 +224,16 @@ export default function FunctionBEO() {
+           {/* Menus */}
+           {menusList.length === 0 ? (
+             <div className="border rounded-md p-8 text-center text-sm text-gray-400">
+-              No menus have been added to this function.
++              {allMenus.length === 0
++                ? "No menus have been added to this function."
++                : "No items have been selected yet. Tick the items the client has ordered on the Services page and they will appear here."}
+             </div>
+           ) : (
+             menusList.map((menu: any, menuIdx: number) => {
+               const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
+               const serviceTypes = (menu.serviceTypes ?? []) as any[];
+ 
+-              const computedMenuTotal = menuTotal > 0
++              const computedMenuTotal = menuTotal >= 0
+                 ? menuTotal
+                 : serviceTypes.reduce((s: number, st: any) => {
+                     const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
+@@ -272,11 +282,10 @@ export default function FunctionBEO() {
+                   ) : (
+                     serviceTypes.map((st: any) => {
+                       const items = (st.items ?? []) as any[];
+-                      const visibleItems = items.filter((item: any) => !item.markItemInternal);
+-                      const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
+-                      const computedStTotal = stTotal > 0
+-                        ? stTotal
+-                        : visibleItems.reduce((s: number, item: any) => s + calcItemTotal(item), 0);
++                      // A BEO lists what the client ORDERED, never the whole
++                      // catalogue the template made available.
++                      const visibleItems = items.filter(isOnBEO);
++                      const computedStTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
+ 
+                       return (
+                         <div key={st.id} className="border-t">
+@@ -413,17 +422,10 @@ export default function FunctionBEO() {
+             <div className="p-4">
+               <table className="w-full text-sm">
+                 <tbody>
+-                  {menusList.map((menu: any) => {
+-                    const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
+-                    const computed = menuTotal > 0
+-                      ? menuTotal
+-                      : (menu.serviceTypes ?? []).reduce((s: number, st: any) => {
+-                          const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
+-                          if (stTotal > 0) return s + stTotal;
+-                          return s + ((st.items ?? []) as any[])
+-                            .filter((i: any) => !i.markItemInternal)
+-                            .reduce((s2: number, item: any) => s2 + calcItemTotal(item), 0);
+-                        }, 0);
++                  {menusList
++                    .filter((menu: any) => (parseFloat(String(menu.menuTotalCharges ?? "0")) || 0) > 0)
++                    .map((menu: any) => {
++                    const computed = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
+                     return (
+                       <tr key={menu.id} className="border-b">
+                         <td className="py-2 text-gray-600">{menu.functionMenuName}</td>
+@@ -437,18 +439,34 @@ export default function FunctionBEO() {
+                     <td className="py-2.5 font-bold text-gray-900">Total F&amp;B Charges</td>
+                     <td className="py-2.5 text-right font-bold text-gray-900">{fmt$(grandTotal)}</td>
+                   </tr>
+-                  <tr className="border-b text-gray-500">
+-                    <td className="py-2">Gratuity (22%)</td>
+-                    <td className="py-2 text-right">{fmt$(grandTotal * 0.22)}</td>
+-                  </tr>
+-                  <tr className="border-b text-gray-500">
+-                    <td className="py-2">Sales Tax (8%)</td>
+-                    <td className="py-2 text-right">{fmt$(grandTotal * 0.08)}</td>
+-                  </tr>
++                  {Number(totals?.serviceCharge ?? 0) > 0 && (
++                    <tr className="border-b text-gray-500">
++                      <td className="py-2">Service Charge</td>
++                      <td className="py-2 text-right">{fmt$(totals.serviceCharge)}</td>
++                    </tr>
++                  )}
++                  {Number(totals?.gratuity ?? 0) > 0 && (
++                    <tr className="border-b text-gray-500">
++                      <td className="py-2">Gratuity</td>
++                      <td className="py-2 text-right">{fmt$(totals.gratuity)}</td>
++                    </tr>
++                  )}
++                  {Number(totals?.salesTax ?? 0) > 0 && (
++                    <tr className="border-b text-gray-500">
++                      <td className="py-2">Sales Tax</td>
++                      <td className="py-2 text-right">{fmt$(totals.salesTax)}</td>
++                    </tr>
++                  )}
++                  {Number(totals?.occupancyTax ?? 0) > 0 && (
++                    <tr className="border-b text-gray-500">
++                      <td className="py-2">Occupancy Tax</td>
++                      <td className="py-2 text-right">{fmt$(totals.occupancyTax)}</td>
++                    </tr>
++                  )}
+                   <tr>
+                     <td className="pt-3 pb-1 text-base font-bold text-gray-900">Estimated Grand Total</td>
+                     <td className="pt-3 pb-1 text-right text-base font-bold text-gray-900">
+-                      {fmt$(grandTotal * 1.30)}
++                      {fmt$(Number(totals?.total ?? 0))}
+                     </td>
+                   </tr>
+                 </tbody>
+diff --git a/artifacts/venuecloud/src/pages/events/FunctionDetail.tsx b/artifacts/venuecloud/src/pages/events/FunctionDetail.tsx
+index 6968b2f..035a296 100644
+--- a/artifacts/venuecloud/src/pages/events/FunctionDetail.tsx
++++ b/artifacts/venuecloud/src/pages/events/FunctionDetail.tsx
+@@ -72,7 +72,7 @@ export default function FunctionDetail() {
+     return <div className="p-8 text-center text-muted-foreground">Function not found.</div>;
+   }
+ 
+-  const fnDisplay = `${fn.functionType ?? "Function"}: ${event?.eventName ?? ""} - ${fn.functionDate ?? ""} - ${(fn as any).functionNumber ?? `#${fn.id}`} - ${(fn as any).location ?? ""}`;
++  const fnDisplay = `${fn.functionType ?? "Function"}: ${event?.eventName ?? ""} - ${fn.functionDate ?? ""} - ${(fn as any).functionNumber ?? `#${fn.id}`} - ${(fn as any).locationName ?? (fn as any).location ?? ""}`;
+ 
+   return (
+     <div className="flex h-full -m-6">
+@@ -154,7 +154,7 @@ export default function FunctionDetail() {
+                 <SelectContent>
+                   {(functions ?? []).map((f: any) => (
+                     <SelectItem key={f.id} value={String(f.id)}>
+-                      {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).location ?? "TBD"}`}
++                      {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).locationName ?? (f as any).location ?? "TBD"}`}
+                     </SelectItem>
+                   ))}
+                 </SelectContent>
+@@ -209,7 +209,7 @@ export default function FunctionDetail() {
+                   <Field label="Function Type" value={(fn as any).functionType} />
+                   <Field label="Function Date" value={(fn as any).functionDate} />
+                   <Field label="Function Number" value={(fn as any).functionNumber} />
+-                  <Field label="Location" value={(fn as any).location} />
++                  <Field label="Location" value={(fn as any).locationName ?? (fn as any).location} />
+                   <Field label="Start Time" value={(fn as any).startTime} />
+                   <Field label="End Time" value={(fn as any).endTime} />
+                   <Field label="Setup Minutes" value={(fn as any).setupMinutes} />
+diff --git a/artifacts/venuecloud/src/pages/events/FunctionMenuEdit.tsx b/artifacts/venuecloud/src/pages/events/FunctionMenuEdit.tsx
+index d5f6814..0655dbc 100644
+--- a/artifacts/venuecloud/src/pages/events/FunctionMenuEdit.tsx
++++ b/artifacts/venuecloud/src/pages/events/FunctionMenuEdit.tsx
+@@ -328,14 +328,17 @@ export default function FunctionMenuEdit() {
+     return getEffectiveQty(item) * getEffectivePrice(item);
+   }
+ 
+-  const subtotal = allItems.reduce((s, i) => s + getEffectiveTotal(i), 0);
+-  const tax = allItems.reduce((s, i) => {
+-    const rc = ((revCenters as any[]) ?? []).find((r: any) => r.id === i.revenueCenterId);
+-    const rate = parseFloat(rc?.salesTaxRate ?? "0") / 100;
+-    return s + getEffectiveTotal(i) * rate;
+-  }, 0);
+-  const gratuity = subtotal * 0.22;
+-  const grandTotal = subtotal + tax + gratuity;
++  // Live preview while editing: only SELECTED items are chargeable, matching
++  // the server pricing engine. Tax and service charges are intentionally NOT
++  // estimated here — the authoritative figures come from the server and are
++  // shown on the services sidebar, the financials pages and the BEO.
++  const subtotal = allItems.reduce(
++    (s, i) => (i.selected === true && i.markItemInternal !== true ? s + getEffectiveTotal(i) : s),
++    0
++  );
++  const selectedItemCount = allItems.filter(
++    (i: any) => i.selected === true && i.markItemInternal !== true
++  ).length;
+ 
+   const fnAttendance = parseFloat((fn as any)?.estimatedAttendance ?? "1") || 1;
+   const menuQty = headerForm.autoCalculateQuantity
+@@ -907,21 +910,15 @@ export default function FunctionMenuEdit() {
+                   <span className="text-muted-foreground">Subtotal</span>
+                   <span className="font-medium tabular-nums">${subtotal.toFixed(2)}</span>
+                 </div>
+-                <div className="flex justify-between">
+-                  <span className="text-muted-foreground">
+-                    Tax{tax > 0 && (revCenters as any[])?.length ? " (est.)" : ""}
++                <div className="flex justify-between text-xs text-muted-foreground">
++                  <span>Selected items</span>
++                  <span className="tabular-nums">
++                    {selectedItemCount} of {allItems.length}
+                   </span>
+-                  <span className="font-medium tabular-nums">${tax.toFixed(2)}</span>
+                 </div>
+-                <div className="flex justify-between">
+-                  <span className="text-muted-foreground">Gratuity (22%)</span>
+-                  <span className="font-medium tabular-nums">${gratuity.toFixed(2)}</span>
+-                </div>
+-                <div className="flex justify-between border-t pt-1.5">
+-                  <span className="font-semibold">Estimated Total</span>
+-                  <span className="font-bold text-base tabular-nums">
+-                    ${grandTotal.toFixed(2)}
+-                  </span>
++                <div className="text-xs text-muted-foreground border-t pt-1.5">
++                  Tax, service charge and gratuity are calculated from your
++                  configured rates. See the full breakdown for the grand total.
+                 </div>
+                 <div className="text-right pt-0.5">
+                   <Link
+diff --git a/artifacts/venuecloud/src/pages/events/FunctionServices.tsx b/artifacts/venuecloud/src/pages/events/FunctionServices.tsx
+index 601edab..e5ab2f9 100644
+--- a/artifacts/venuecloud/src/pages/events/FunctionServices.tsx
++++ b/artifacts/venuecloud/src/pages/events/FunctionServices.tsx
+@@ -6,6 +6,7 @@ import {
+   useGetFunction,
+   useListEventFunctions,
+   useGetFunctionMenus,
++  useGetFunctionFinancials,
+   useGetMenuTemplates,
+   useCreateFunctionMenu,
+   useDeleteFunctionMenu,
+@@ -2207,11 +2208,13 @@ export default function FunctionServices() {
+     query: { enabled: !!functionId } as any,
+   });
+ 
+-  const totalCharges = (menus ?? []).reduce((sum: number, menu: any) => {
+-    return sum + (menu.serviceTypes ?? []).reduce((s: number, st: any) => {
+-      return s + (st.items ?? []).reduce((si: number, i: any) => si + (parseFloat(i.itemTotal ?? "0") || 0), 0);
+-    }, 0);
+-  }, 0);
++  // Money comes from the server's pricing engine, never recomputed here.
++  const { data: financials } = useGetFunctionFinancials(functionId, {
++    query: { enabled: !!functionId } as any,
++  });
++  const totals = (financials as any)?.totals;
++  const rateWarnings: string[] = (financials as any)?.warnings ?? [];
++  const totalCharges = Number(totals?.charges ?? 0);
+ 
+   if (fnLoading) {
+     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-4" /><Skeleton className="h-64 w-full" /></div>;
+@@ -2234,8 +2237,40 @@ export default function FunctionServices() {
+             <span>Menus</span><span className="font-medium">{menus?.length ?? 0}</span>
+           </div>
+           <div className="flex justify-between text-sm">
+-            <span>Total Charges</span><span className="font-semibold text-primary">{fmt(totalCharges)}</span>
++            <span>Subtotal</span><span className="font-medium">{fmt(totalCharges)}</span>
++          </div>
++          {Number(totals?.serviceCharge ?? 0) > 0 && (
++            <div className="flex justify-between text-sm text-muted-foreground">
++              <span>Service Charge</span><span>{fmt(Number(totals.serviceCharge))}</span>
++            </div>
++          )}
++          {Number(totals?.gratuity ?? 0) > 0 && (
++            <div className="flex justify-between text-sm text-muted-foreground">
++              <span>Gratuity</span><span>{fmt(Number(totals.gratuity))}</span>
++            </div>
++          )}
++          {Number(totals?.salesTax ?? 0) > 0 && (
++            <div className="flex justify-between text-sm text-muted-foreground">
++              <span>Sales Tax</span><span>{fmt(Number(totals.salesTax))}</span>
++            </div>
++          )}
++          {Number(totals?.occupancyTax ?? 0) > 0 && (
++            <div className="flex justify-between text-sm text-muted-foreground">
++              <span>Occupancy Tax</span><span>{fmt(Number(totals.occupancyTax))}</span>
++            </div>
++          )}
++          <div className="flex justify-between text-sm pt-2 border-t">
++            <span>Grand Total</span>
++            <span className="font-semibold text-primary">{fmt(Number(totals?.total ?? 0))}</span>
+           </div>
++          {rateWarnings.length > 0 && (
++            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] leading-snug text-amber-900">
++              <div className="font-semibold mb-1">Rate configuration</div>
++              <ul className="list-disc pl-4 space-y-0.5">
++                {rateWarnings.map((w, i) => <li key={i}>{w}</li>)}
++              </ul>
++            </div>
++          )}
+         </div>
+         <div className="p-4 space-y-1">
+           <div className="text-xs text-muted-foreground uppercase font-medium tracking-wide mb-2">Quick Links</div>
+@@ -2266,7 +2301,7 @@ export default function FunctionServices() {
+             <SelectContent>
+               {(functions ?? []).map((f: any) => (
+                 <SelectItem key={f.id} value={String(f.id)}>
+-                  {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).location ?? "TBD"}`}
++                  {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).locationName ?? (f as any).location ?? "TBD"}`}
+                 </SelectItem>
+               ))}
+             </SelectContent>
+-- 
+2.43.0
+
+
+From d5b6eb294b2d6b60bb04d66c71cb26b6c256cb2a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:45:48 +0000
+Subject: [PATCH 5/6] Add pricing regression checks, a dev fixture and backfill
+ scripts
+
+  * seed:dev        reproduces production function 1 exactly (77 items, 1
+                    selected, $6,053.00 gross vs $160.00 ordered) and
+                    refuses to run without ALLOW_DESTRUCTIVE_SEED=yes.
+  * verify:pricing  28 assertions covering the pure helpers, the fixture,
+                    and rate configuration -- proving tax and gratuity are
+                    driven by settings rather than by constants.
+  * backfill:items  fills revenue_center_id and cost on existing service
+                    items by matching names back to the catalog. Dry-run by
+                    default; --apply to write. Reports what it could not
+                    match.
+  * seed:rates      writes a conventional starting tax/service-fee setup for
+                    a property that has none. Only fills unset values.
+
+vite gains an optional API_PROXY_TARGET dev proxy, inert unless set.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ artifacts/venuecloud/vite.config.ts   |   6 +
+ pnpm-lock.yaml                        |   7 +
+ scripts/package.json                  |  10 +-
+ scripts/src/backfill-service-items.ts | 113 ++++++++++++++++
+ scripts/src/seed-dev-fixture.ts       | 187 ++++++++++++++++++++++++++
+ scripts/src/seed-rate-config.ts       |  94 +++++++++++++
+ scripts/src/verify-pricing.ts         | 108 +++++++++++++++
+ 7 files changed, 524 insertions(+), 1 deletion(-)
+ create mode 100644 scripts/src/backfill-service-items.ts
+ create mode 100644 scripts/src/seed-dev-fixture.ts
+ create mode 100644 scripts/src/seed-rate-config.ts
+ create mode 100644 scripts/src/verify-pricing.ts
+
+diff --git a/artifacts/venuecloud/vite.config.ts b/artifacts/venuecloud/vite.config.ts
+index 13bf2c6..0b62302 100644
+--- a/artifacts/venuecloud/vite.config.ts
++++ b/artifacts/venuecloud/vite.config.ts
+@@ -61,6 +61,12 @@ export default defineConfig({
+   server: {
+     port,
+     strictPort: true,
++    // Optional local-development convenience: point the SPA at an API server
++    // running on another port, e.g. API_PROXY_TARGET=http://localhost:8080.
++    // Inert unless the variable is set, so hosted deployments are unaffected.
++    ...(process.env.API_PROXY_TARGET
++      ? { proxy: { "/api": { target: process.env.API_PROXY_TARGET, changeOrigin: true } } }
++      : {}),
+     host: "0.0.0.0",
+     allowedHosts: true,
+     historyApiFallback: true,
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 23a91cd..1ec6eb2 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -635,6 +635,13 @@ importers:
+         version: 0.31.10
+ 
+   scripts:
++    dependencies:
++      '@workspace/db':
++        specifier: workspace:*
++        version: link:../lib/db
++      drizzle-orm:
++        specifier: 'catalog:'
++        version: 0.45.2(@types/pg@8.20.0)(pg@8.20.0)
+     devDependencies:
+       '@types/node':
+         specifier: 'catalog:'
+diff --git a/scripts/package.json b/scripts/package.json
+index 3413c78..55d33de 100644
+--- a/scripts/package.json
++++ b/scripts/package.json
+@@ -5,10 +5,18 @@
+   "type": "module",
+   "scripts": {
+     "hello": "tsx ./src/hello.ts",
+-    "typecheck": "tsc -p tsconfig.json --noEmit"
++    "typecheck": "tsc -p tsconfig.json --noEmit",
++    "seed:dev": "tsx ./src/seed-dev-fixture.ts",
++    "verify:pricing": "tsx ./src/verify-pricing.ts",
++    "backfill:items": "tsx ./src/backfill-service-items.ts",
++    "seed:rates": "tsx ./src/seed-rate-config.ts"
+   },
+   "devDependencies": {
+     "@types/node": "catalog:",
+     "tsx": "catalog:"
++  },
++  "dependencies": {
++    "@workspace/db": "workspace:*",
++    "drizzle-orm": "catalog:"
+   }
+ }
+diff --git a/scripts/src/backfill-service-items.ts b/scripts/src/backfill-service-items.ts
+new file mode 100644
+index 0000000..7c66c21
+--- /dev/null
++++ b/scripts/src/backfill-service-items.ts
+@@ -0,0 +1,113 @@
++/**
++ * One-time backfill for existing function menu items.
++ *
++ * Items copied from a menu template before the fix did not inherit
++ * `revenue_center_id` or `cost` from the catalog. Without those two columns:
++ *
++ *   - every dollar rolls up into the "Other" revenue center, so the Revenue
++ *     Center Breakdown is meaningless and per-center tax cannot be applied;
++ *   - every margin reads 100% because cost is zero.
++ *
++ * This matches existing service items back to catalog_items by name and fills
++ * in the missing values. Run it MANUALLY, once, after deploying.
++ *
++ *   DATABASE_URL=... pnpm --filter @workspace/scripts run backfill:items
++ *
++ * Pass --apply to write. Without it the script reports what it would do and
++ * changes nothing.
++ */
++
++import { db } from "@workspace/db";
++import { serviceItemsTable, catalogItemsTable, revenueCentersTable } from "@workspace/db";
++import { eq, isNull, or, and } from "drizzle-orm";
++
++const APPLY = process.argv.includes("--apply");
++
++function normalise(name: string): string {
++  return name.trim().toLowerCase().replace(/\s+/g, " ");
++}
++
++async function main() {
++  const [catalog, revCenters, items] = await Promise.all([
++    db.select().from(catalogItemsTable),
++    db.select().from(revenueCentersTable),
++    db
++      .select()
++      .from(serviceItemsTable)
++      .where(or(isNull(serviceItemsTable.revenueCenterId), isNull(serviceItemsTable.cost))),
++  ]);
++
++  const catalogByName = new Map<string, typeof catalog[number]>();
++  for (const c of catalog) catalogByName.set(normalise(c.name), c);
++
++  const defaultRc = revCenters.find((rc) => rc.isDefault === true) ?? null;
++
++  let matched = 0;
++  let unmatched = 0;
++  let rcFilled = 0;
++  let costFilled = 0;
++  let defaulted = 0;
++  const unmatchedNames = new Set<string>();
++
++  for (const item of items) {
++    const hit = catalogByName.get(normalise(item.itemName));
++
++    const patch: Partial<typeof serviceItemsTable.$inferInsert> = {};
++
++    if (hit) {
++      matched++;
++      if (item.revenueCenterId == null && hit.revenueCenterId != null) {
++        patch.revenueCenterId = hit.revenueCenterId;
++        rcFilled++;
++      }
++      if (item.cost == null && hit.cost != null) {
++        patch.cost = hit.cost;
++        costFilled++;
++      }
++    } else {
++      unmatched++;
++      unmatchedNames.add(item.itemName);
++    }
++
++    // Anything still without a revenue center falls back to the configured
++    // default so it is at least taxed correctly.
++    if (patch.revenueCenterId == null && item.revenueCenterId == null && defaultRc) {
++      patch.revenueCenterId = defaultRc.id;
++      defaulted++;
++    }
++
++    if (Object.keys(patch).length > 0 && APPLY) {
++      await db
++        .update(serviceItemsTable)
++        .set({ ...patch, updatedAt: new Date() })
++        .where(eq(serviceItemsTable.id, item.id));
++    }
++  }
++
++  console.log(APPLY ? "APPLIED CHANGES" : "DRY RUN — pass --apply to write");
++  console.log(`  service items missing data : ${items.length}`);
++  console.log(`  matched to catalog by name : ${matched}`);
++  console.log(`  unmatched                  : ${unmatched}`);
++  console.log(`  revenue centers filled     : ${rcFilled}`);
++  console.log(`  costs filled               : ${costFilled}`);
++  console.log(`  fell back to default center: ${defaulted}`);
++
++  if (!defaultRc) {
++    console.log("\n  WARNING: no revenue center is flagged as default.");
++    console.log("  Set one in Settings > Revenue Centers, then re-run.");
++  }
++
++  if (unmatchedNames.size > 0) {
++    console.log(`\n  ${unmatchedNames.size} distinct item name(s) had no catalog match:`);
++    for (const name of [...unmatchedNames].slice(0, 25)) console.log(`    - ${name}`);
++    if (unmatchedNames.size > 25) console.log(`    ... and ${unmatchedNames.size - 25} more`);
++    console.log("  These need a revenue center and cost set by hand, or a catalog entry added.");
++  }
++
++  process.exit(0);
++}
++
++main().catch((err) => {
++  console.error(err);
++  process.exit(1);
++});
+diff --git a/scripts/src/seed-dev-fixture.ts b/scripts/src/seed-dev-fixture.ts
+new file mode 100644
+index 0000000..4211836
+--- /dev/null
++++ b/scripts/src/seed-dev-fixture.ts
+@@ -0,0 +1,187 @@
++/**
++ * Development fixture.
++ *
++ * Reproduces the exact shape of production event 1 / function 1 so that the
++ * pricing engine can be verified against known-correct numbers:
++ *
++ *   7 menus, 77 service items, exactly 1 of them selected
++ *   sum of ALL items      = $6,053.00   <- what the app used to bill
++ *   sum of SELECTED items = $  160.00   <- what it should bill
++ *
++ * Safe to run repeatedly: it truncates and rebuilds only the tables it owns.
++ * NEVER run this against a production database.
++ */
++
++import { db } from "@workspace/db";
++import {
++  eventsTable,
++  functionsTable,
++  locationsTable,
++  revenueCentersTable,
++  serviceFeesTable,
++  catalogItemsTable,
++  menuTemplatesTable,
++  menuTemplateItemsTable,
++  functionMenusTable,
++  serviceTypesTable,
++  serviceItemsTable,
++} from "@workspace/db";
++import { sql } from "drizzle-orm";
++
++if (process.env.ALLOW_DESTRUCTIVE_SEED !== "yes") {
++  console.error("Refusing to run. Set ALLOW_DESTRUCTIVE_SEED=yes to confirm this is a dev database.");
++  process.exit(1);
++}
++
++async function main() {
++  await db.execute(
++    sql`TRUNCATE TABLE service_items, service_types, function_menus, menu_template_items, menu_templates,
++        catalog_items, functions, events, locations, revenue_centers, service_fees RESTART IDENTITY CASCADE`
++  );
++
++  /* ---------------------------------------------------------------- config */
++  // Mirrors production: ten revenue centers, no tax rates set, none default.
++  const rcNames: [string, string][] = [
++    ["Rentals", "Rental"],
++    ["Equipment", "Audio Visual"],
++    ["Other (No Taxes or Fees)", "Other"],
++    ["Alcoholic Beverage", "Food & Beverage"],
++    ["Non-Alcoholic Beverage", "Food & Beverage"],
++    ["Outside Services", "Service"],
++    ["Labor", "Service"],
++    ["Service Fees", "Service"],
++    ["Room Rental", "Rental"],
++    ["Food", "Food & Beverage"],
++  ];
++  await db.insert(revenueCentersTable).values(
++    rcNames.map(([name, category]) => ({ name, category, isActive: true, isDefault: false }))
++  );
++  const RC_FOOD = 10;
++  const RC_BEVERAGE = 4;
++  const RC_RENTALS = 1;
++
++  // service_fees intentionally left EMPTY, exactly as in production.
++
++  await db.insert(locationsTable).values([
++    { name: "Grand Ballroom", code: "GBALL", capacity: 400, site: "Main", description: "Elegant grand ballroom with chandeliers and hardwood floors" },
++    { name: "Cypress Room", code: "CYP", capacity: 60, site: "Main" },
++    { name: "Lakeside Terrace", code: "LKT", capacity: 250, site: "Main", description: "Scenic outdoor terrace overlooking the lake" },
++  ]);
++
++  /* ----------------------------------------------------------------- event */
++  await db.insert(eventsTable).values({
++    eventName: "Meridian Annual Leadership Summit",
++    eventNumber: "EVT-2026-0001",
++    eventType: "Conference",
++    estimatedAttendance: 180,
++    owner: "Sarah Johnson",
++    salesperson: "Sarah Johnson",
++    startDate: "2026-05-23",
++    endDate: "2026-05-25",
++    eventStatus: "Definite",
++    site: "Main",
++    eventNote: "Full property buyout for 3 nights",
++  });
++
++  await db.insert(functionsTable).values([
++    {
++      eventId: 1, functionType: "General Session", functionDate: "2026-05-23", locationId: 1,
++      startTime: "09:00", endTime: "17:00", setupMinutes: 60, teardownMinutes: 60,
++      setupStyle: "Theater", estimatedAttendance: 180, functionNumber: "FN-001",
++    },
++    {
++      eventId: 1, functionType: "Networking Dinner", functionDate: "2026-05-23", locationId: 3,
++      startTime: "19:00", endTime: "22:00", setupMinutes: 90, teardownMinutes: 45,
++      setupStyle: "Reception", estimatedAttendance: 180, functionNumber: "FN-002",
++    },
++  ]);
++
++  /* --------------------------------------------------------------- catalog */
++  // Catalog items carry cost and revenue center; service items must inherit both.
++  await db.insert(catalogItemsTable).values([
++    { name: "4oz Filet Mignon with Port-Wine Demi", price: "46.00", cost: "13.20", revenueCenterId: RC_FOOD, unit: "per person", isActive: true },
++    { name: "Bar Set-up", price: "350.00", cost: "40.00", revenueCenterId: RC_BEVERAGE, isActive: true },
++    { name: "60\" Round Tables", price: "0.00", cost: "0.00", revenueCenterId: RC_RENTALS, isActive: true },
++  ]);
++
++  /* ----------------------------------------------- menus mirroring prod fn1 */
++  // [menu name, templateId, item count, total value of all items, selected index]
++  const menuSpecs: { name: string; templateId: number | null; count: number; total: number; selectedIdx: number | null; rc: number }[] = [
++    { name: "Custom Menu", templateId: null, count: 0, total: 0, selectedIdx: null, rc: RC_FOOD },
++    { name: "Banquet Set Up", templateId: 11, count: 25, total: 0, selectedIdx: null, rc: RC_RENTALS },
++    { name: "Banquet Bar Brittany", templateId: 10, count: 4, total: 429, selectedIdx: null, rc: RC_BEVERAGE },
++    { name: "Billing Instructions Brittany", templateId: 13, count: 6, total: 800, selectedIdx: null, rc: RC_FOOD },
++    { name: "Billing: Event Space", templateId: 12, count: 6, total: 800, selectedIdx: null, rc: RC_RENTALS },
++    { name: "Hors d'oeuvres", templateId: 4, count: 32, total: 3595, selectedIdx: 0, rc: RC_FOOD },
++    // Duplicate of the same template — production really does have this twice.
++    { name: "Banquet Bar Brittany", templateId: 10, count: 4, total: 429, selectedIdx: null, rc: RC_BEVERAGE },
++  ];
++
++  let stId = 0;
++  for (const spec of menuSpecs) {
++    const [menu] = await db
++      .insert(functionMenusTable)
++      .values({
++        functionId: 1,
++        templateId: spec.templateId,
++        functionMenuName: spec.name,
++        pricingType: spec.templateId === null ? "A La Carte Pricing" : "a_la_carte",
++      })
++      .returning();
++
++    if (spec.count === 0) continue;
++
++    stId += 1;
++    const [st] = await db
++      .insert(serviceTypesTable)
++      .values({ functionMenuId: menu.id, serviceTypeName: spec.name, displayOrder: 0 })
++      .returning();
++
++    // Distribute the menu's total across its items; the first item of the
++    // Hors d'oeuvres menu is the single selected one and is worth $160.
++    const rows = [];
++    let remaining = spec.total;
++    for (let i = 0; i < spec.count; i++) {
++      const isSelected = spec.selectedIdx === i;
++      let price: number;
++      if (isSelected) price = 160;
++      else if (i === spec.count - 1) price = Math.max(0, remaining);
++      else price = spec.total === 0 ? 0 : Math.round((spec.total / spec.count) * 100) / 100;
++      if (!isSelected) remaining -= price;
++      else remaining -= 160;
++
++      rows.push({
++        serviceTypeId: st.id,
++        itemName: `${spec.name} item ${i + 1}`,
++        quantity: "1.0000",
++        aLaCartePrice: price.toFixed(2),
++        // Production has these null — the backfill script is what populates them.
++        cost: null,
++        revenueCenterId: null,
++        selected: isSelected,
++        itemTotal: price.toFixed(2),
++        quantityPrecision: "Whole",
++      });
++    }
++    await db.insert(serviceItemsTable).values(rows);
++  }
++
++  const [{ count, sumAll, sumSelected }] = (await db.execute(sql`
++    SELECT COUNT(*)::int AS count,
++           COALESCE(SUM(quantity * a_la_carte_price), 0)::float AS "sumAll",
++           COALESCE(SUM(CASE WHEN selected THEN quantity * a_la_carte_price ELSE 0 END), 0)::float AS "sumSelected"
++    FROM service_items
++  `)).rows as unknown as { count: number; sumAll: number; sumSelected: number }[];
++
++  console.log(`Seeded. items=${count} sumAll=$${sumAll.toFixed(2)} sumSelected=$${sumSelected.toFixed(2)}`);
++  if (count !== 77 || Math.abs(sumAll - 6053) > 0.01 || Math.abs(sumSelected - 160) > 0.01) {
++    console.error("Fixture does not match production shape (expected 77 / 6053.00 / 160.00)");
++    process.exit(1);
++  }
++  process.exit(0);
++}
++
++main().catch((err) => {
++  console.error(err);
++  process.exit(1);
++});
+diff --git a/scripts/src/seed-rate-config.ts b/scripts/src/seed-rate-config.ts
+new file mode 100644
+index 0000000..ad03a2f
+--- /dev/null
++++ b/scripts/src/seed-rate-config.ts
+@@ -0,0 +1,94 @@
++/**
++ * Seeds a starting rate configuration.
++ *
++ * The pricing engine deliberately refuses to invent rates: if `service_fees` is
++ * empty and every revenue center has a null tax rate, service charge, gratuity
++ * and tax all come out as $0 and the UI shows a warning. That is correct
++ * behaviour, but a brand-new property still needs somewhere to start.
++ *
++ * This writes a conventional US resort setup which can then be edited in
++ * Settings. It only fills in values that are currently unset, so it will not
++ * overwrite rates a property has already configured.
++ *
++ *   DATABASE_URL=... pnpm --filter @workspace/scripts run seed:rates -- --apply
++ */
++
++import { db } from "@workspace/db";
++import { revenueCentersTable, serviceFeesTable } from "@workspace/db";
++import { eq, isNull, and } from "drizzle-orm";
++
++const APPLY = process.argv.includes("--apply");
++
++/** name -> [salesTax %, occupancyTax %] */
++const DEFAULT_TAX: Record<string, [number, number]> = {
++  Food: [8, 0],
++  "Non-Alcoholic Beverage": [8, 0],
++  "Alcoholic Beverage": [10, 0],
++  "Room Rental": [8, 0],
++  Rentals: [8, 0],
++  Equipment: [8, 0],
++  Labor: [0, 0],
++  "Outside Services": [0, 0],
++  "Service Fees": [0, 0],
++  "Other (No Taxes or Fees)": [0, 0],
++};
++
++const DEFAULT_FEES = [
++  { name: "Gratuity 22%", ratePercent: "22.0000", isTaxable: false },
++  { name: "Administrative Fee 3%", ratePercent: "3.0000", isTaxable: true },
++];
++
++async function main() {
++  const revCenters = await db.select().from(revenueCentersTable);
++  const existingFees = await db.select().from(serviceFeesTable);
++
++  const plan: string[] = [];
++
++  for (const rc of revCenters) {
++    const preset = DEFAULT_TAX[rc.name];
++    if (!preset) continue;
++    if (rc.salesTaxRate != null || rc.occupancyTaxRate != null) continue;
++    plan.push(`  tax   ${rc.name}: sales ${preset[0]}% / occupancy ${preset[1]}%`);
++    if (APPLY) {
++      await db
++        .update(revenueCentersTable)
++        .set({ salesTaxRate: preset[0].toFixed(4), occupancyTaxRate: preset[1].toFixed(4) })
++        .where(eq(revenueCentersTable.id, rc.id));
++    }
++  }
++
++  // Exactly one revenue center must be the default; Food is the sane pick for
++  // a catering-led property.
++  const hasDefault = revCenters.some((rc) => rc.isDefault === true);
++  if (!hasDefault) {
++    const food = revCenters.find((rc) => rc.name === "Food") ?? revCenters[0];
++    if (food) {
++      plan.push(`  default revenue center: ${food.name}`);
++      if (APPLY) {
++        await db.update(revenueCentersTable).set({ isDefault: false });
++        await db.update(revenueCentersTable).set({ isDefault: true }).where(eq(revenueCentersTable.id, food.id));
++      }
++    }
++  }
++
++  if (existingFees.length === 0) {
++    for (const fee of DEFAULT_FEES) {
++      plan.push(`  service fee: ${fee.name} (${fee.ratePercent}%, taxable=${fee.isTaxable})`);
++    }
++    if (APPLY) await db.insert(serviceFeesTable).values(DEFAULT_FEES);
++  }
++
++  if (plan.length === 0) {
++    console.log("Nothing to do — rates are already configured.");
++  } else {
++    console.log(APPLY ? "APPLIED:" : "DRY RUN — pass --apply to write:");
++    for (const line of plan) console.log(line);
++    console.log("\nEdit these in Settings > Tax Rates and Settings > Financial.");
++  }
++  process.exit(0);
++}
++
++main().catch((err) => {
++  console.error(err);
++  process.exit(1);
++});
+diff --git a/scripts/src/verify-pricing.ts b/scripts/src/verify-pricing.ts
+new file mode 100644
+index 0000000..f22b714
+--- /dev/null
++++ b/scripts/src/verify-pricing.ts
+@@ -0,0 +1,108 @@
++/**
++ * Regression check for the pricing engine, run against the dev fixture.
++ *
++ * The fixture reproduces production function 1: 77 items of which exactly one
++ * is selected. Before the fix the app billed the sum of ALL items ($6,053.00);
++ * it must now bill only the selected one ($160.00).
++ */
++
++import { db } from "@workspace/db";
++import { revenueCentersTable, serviceFeesTable } from "@workspace/db";
++import { eq } from "drizzle-orm";
++import {
++  calculateFunctionPricing,
++  calculateEventPricing,
++  computeLineTotal,
++  isBillable,
++  round2,
++} from "../../artifacts/api-server/src/services/pricing.ts";
++
++let failures = 0;
++
++function check(label: string, actual: unknown, expected: unknown) {
++  const ok = JSON.stringify(actual) === JSON.stringify(expected);
++  if (!ok) failures++;
++  console.log(`${ok ? "PASS" : "FAIL"}  ${label}  actual=${JSON.stringify(actual)} expected=${JSON.stringify(expected)}`);
++}
++
++async function main() {
++  /* ------------------------------------------------------- pure functions */
++  check("unselected item is not billable", isBillable({ selected: false, quantity: "1" }), false);
++  check("selected item with qty is billable", isBillable({ selected: true, quantity: "1" }), true);
++  check("selected item with zero qty is not billable", isBillable({ selected: true, quantity: "0" }), false);
++  check("internal item is not billable", isBillable({ selected: true, quantity: "1", markItemInternal: true }), false);
++
++  check("line total = qty x price", computeLineTotal({ quantity: "3", aLaCartePrice: "46.00" }), 138);
++  check(
++    "hourly line total = qty x price x hours",
++    computeLineTotal({ quantity: "2", aLaCartePrice: "75.00", chargeHourly: true, numHours: "4" }),
++    600
++  );
++  check("addOnPrice is included", computeLineTotal({ quantity: "1", aLaCartePrice: "10", addOnPrice: "5" }), 15);
++  check("rounding is half-up at 2dp", round2(1.005), 1.01);
++
++  /* --------------------------------------------------- engine vs fixture */
++  const fn = await calculateFunctionPricing(1);
++
++  check("function 1 billable line count", fn.lines.length, 1);
++  check("function 1 charges (was 6053.00)", fn.totals.charges, 160);
++  check("no service fees configured -> gratuity is 0", fn.totals.gratuity, 0);
++  check("no tax rates configured -> sales tax is 0", fn.totals.salesTax, 0);
++  check("function 1 total", fn.totals.total, 160);
++
++  const menuTotalsSum = round2(
++    Object.values(fn.menuTotals).reduce((s, m) => s + m.charges, 0)
++  );
++  check("menu totals sum to function charges", menuTotalsSum, fn.totals.charges);
++
++  const rcSum = round2(fn.byRevenueCenter.reduce((s, r) => s + r.charges, 0));
++  check("revenue center totals sum to function charges", rcSum, fn.totals.charges);
++
++  check(
++    "item counts are still reported for unselected items",
++    Object.values(fn.menuTotals).reduce((s, m) => s + m.itemCount, 0),
++    77
++  );
++
++  check("warns that service fees are unconfigured", fn.warnings.some((w) => /service fees/i.test(w)), true);
++  check("warns that no default revenue center is set", fn.warnings.some((w) => /default revenue center/i.test(w)), true);
++
++  /* ------------------------------------------------------------- event */
++  const ev = await calculateEventPricing(1);
++  check("event charges equal sum of its functions", ev.totals.charges, 160);
++  check("event balance due", ev.balanceDue, 160);
++  check("event has two functions", ev.functions.length, 2);
++
++  /* ------------------------------- with rates actually configured ------- */
++  // Prove that tax and gratuity are driven by configuration rather than by
++  // constants baked into the code.
++  await db.update(revenueCentersTable).set({ isDefault: false });
++  await db
++    .update(revenueCentersTable)
++    .set({ isDefault: true, salesTaxRate: "8.0000", occupancyTaxRate: "0.0000" })
++    .where(eq(revenueCentersTable.name, "Food"));
++  await db.insert(serviceFeesTable).values([
++    { name: "Gratuity 22%", ratePercent: "22.0000", isTaxable: false },
++  ]);
++
++  const fn2 = await calculateFunctionPricing(1);
++  check("charges unchanged by rate config", fn2.totals.charges, 160);
++  check("gratuity now 22% of 160", fn2.totals.gratuity, 35.2);
++  check("sales tax now 8% of 160", fn2.totals.salesTax, 12.8);
++  check("grand total = 160 + 35.20 + 12.80", fn2.totals.total, 208);
++  check("no rate warnings once configured", fn2.warnings.length, 0);
++  check("item lands in the default revenue center", fn2.byRevenueCenter[0]?.revenueCenterName, "Food");
++
++  // Taxable service fees must widen the tax base.
++  await db.update(serviceFeesTable).set({ isTaxable: true });
++  const fn3 = await calculateFunctionPricing(1);
++  check("taxable gratuity widens the tax base", fn3.totals.salesTax, 15.62);
++
++  console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
++  process.exit(failures === 0 ? 0 : 1);
++}
++
++main().catch((err) => {
++  console.error(err);
++  process.exit(1);
++});
+-- 
+2.43.0
+
+
+From 8a3b1deb313bc5f183e5e4aa60dffb2d0bbdd20c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 14 Aug 2026 16:46:53 +0000
+Subject: [PATCH 6/6] Make the pricing verification repeatable
+
+The script configured rates as part of its second phase but never reset
+them, so a second run started from the first run's leftovers and every
+rate-dependent assertion failed. It now clears service fees and revenue
+centre rates up front.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Aar9a19BttoKXAyn5iy7Mk
+---
+ scripts/src/verify-pricing.ts | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/scripts/src/verify-pricing.ts b/scripts/src/verify-pricing.ts
+index f22b714..cb98d4b 100644
+--- a/scripts/src/verify-pricing.ts
++++ b/scripts/src/verify-pricing.ts
+@@ -26,6 +26,13 @@ function check(label: string, actual: unknown, expected: unknown) {
+ }
+ 
+ async function main() {
++  // Make the run repeatable: clear any rate configuration left behind by a
++  // previous run, so phase 1 always starts from "nothing configured".
++  await db.delete(serviceFeesTable);
++  await db
++    .update(revenueCentersTable)
++    .set({ isDefault: false, salesTaxRate: null, occupancyTaxRate: null });
++
+   /* ------------------------------------------------------- pure functions */
+   check("unselected item is not billable", isBillable({ selected: false, quantity: "1" }), false);
+   check("selected item with qty is billable", isBillable({ selected: true, quantity: "1" }), true);
+-- 
+2.43.0
+
