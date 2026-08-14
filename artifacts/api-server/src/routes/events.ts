@@ -157,9 +157,26 @@ router.get("/", async (req, res) => {
   }
 });
 
+/**
+ * A dateless event corrupts the calendar, every report, pace figures and the
+ * guest rooms grid, so the API refuses one regardless of what the form does.
+ */
+function validateEventDates(body: Record<string, unknown>): string | null {
+  const start = body.startDate as string | undefined;
+  const end = body.endDate as string | undefined;
+  if (!start) return "startDate is required";
+  if (!end) return "endDate is required";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return "startDate must be YYYY-MM-DD";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return "endDate must be YYYY-MM-DD";
+  if (end < start) return "endDate cannot be before startDate";
+  return null;
+}
+
 router.post("/", async (req, res) => {
   try {
     const body = req.body;
+    const dateError = validateEventDates(body);
+    if (dateError) { res.status(400).json({ error: dateError }); return; }
     const eventNumber = `EVT-${Date.now()}`;
     const [created] = await db
       .insert(eventsTable)
@@ -279,10 +296,23 @@ router.get("/:id/functions", async (req, res) => {
   }
 });
 
+/** A function with no date cannot be placed on a diary, a BEO or a report. */
+function validateFunctionDates(body: Record<string, unknown>): string | null {
+  const date = body.functionDate as string | undefined;
+  if (!date) return "functionDate is required";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "functionDate must be YYYY-MM-DD";
+  const start = body.startTime as string | undefined;
+  const end = body.endTime as string | undefined;
+  if (start && end && end <= start) return "endTime must be after startTime";
+  return null;
+}
+
 router.post("/:id/functions", async (req, res) => {
   try {
     const { functionsTable } = await import("@workspace/db");
     const id = parseInt(req.params.id);
+    const fnError = validateFunctionDates(req.body ?? {});
+    if (fnError) { res.status(400).json({ error: fnError }); return; }
     const functionNumber = `FN-${Date.now()}`;
     const [created] = await db
       .insert(functionsTable)

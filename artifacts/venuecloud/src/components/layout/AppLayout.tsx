@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useCallback, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useIsFetching } from "@tanstack/react-query";
 import {
@@ -12,9 +12,6 @@ import {
   BedDouble,
   Settings,
   Search,
-  HelpCircle,
-  MoreHorizontal,
-  MessageSquare,
   Network,
   Zap,
   BookOpen,
@@ -22,6 +19,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GlobalSearch, useGlobalSearchHotkey } from "@/components/GlobalSearch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RecentRecordsBar } from "@/components/RecentRecords";
 
@@ -53,8 +51,11 @@ type Props = {
 export function AppLayout({ children, onQuickEntry }: Props) {
   const [location] = useLocation();
   const isFetching = useIsFetching();
+  const [searchOpen, setSearchOpen] = useState(false);
+  useGlobalSearchHotkey(useCallback(() => setSearchOpen(true), []));
 
   return (
+    <>
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <div className="w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col text-sidebar-foreground">
@@ -111,17 +112,20 @@ export function AppLayout({ children, onQuickEntry }: Props) {
         <header className="h-14 border-b bg-card flex items-center justify-between px-4 shadow-sm z-10 flex-shrink-0 relative">
           <div className="font-semibold text-lg">VenueCloud</div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+            {/* The message, help and overflow icons did nothing when clicked.
+                A control that no-ops costs more trust than a missing one, so
+                they are gone until they have something behind them. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-2 text-muted-foreground px-2"
+              onClick={() => setSearchOpen(true)}
+              title="Search (Ctrl/Cmd + K)"
+            >
               <Search className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-              <HelpCircle className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-              <MoreHorizontal className="h-4 w-4" />
+              <kbd className="hidden sm:inline text-[10px] font-mono border rounded px-1 py-0.5">
+                ⌘K
+              </kbd>
             </Button>
             <Avatar className="h-8 w-8 ml-2">
               <AvatarFallback className="bg-primary/10 text-primary text-xs">JS</AvatarFallback>
@@ -144,5 +148,7 @@ export function AppLayout({ children, onQuickEntry }: Props) {
         </main>
       </div>
     </div>
+    <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+    </>
   );
 }

@@ -9,7 +9,7 @@ import {
   catalogItemsTable,
   revenueCentersTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { calculateFunctionPricing } from "../services/pricing.js";
 
 const router = Router();
@@ -143,12 +143,32 @@ router.post("/:id/add-menu-template", async (req, res) => {
     });
     if (!template) { res.status(404).json({ error: "Template not found" }); return; }
 
+    // Attaching the same template twice is legitimate -- a second bar setup,
+    // say -- but it must never happen silently: function 1 in production had
+    // "Banquet Bar Brittany" attached twice and billed for both.
+    const existing = await db
+      .select()
+      .from(functionMenusTable)
+      .where(and(eq(functionMenusTable.functionId, functionId), eq(functionMenusTable.templateId, templateId)));
+
+    if (existing.length > 0 && req.body?.confirmDuplicate !== true) {
+      res.status(409).json({
+        error: "duplicate_template",
+        message: `"${template.name}" is already on this function. Add a second copy?`,
+        existingCount: existing.length,
+      });
+      return;
+    }
+
+    // Distinguish the copies on the BEO.
+    const displayName = existing.length > 0 ? `${template.name} (${existing.length + 1})` : template.name;
+
     const [menu] = await db
       .insert(functionMenusTable)
       .values({
         functionId,
         templateId,
-        functionMenuName: template.name,
+        functionMenuName: displayName,
         pricingType: template.pricingType,
       })
       .returning();

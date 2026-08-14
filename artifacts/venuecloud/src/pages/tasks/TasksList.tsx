@@ -189,7 +189,7 @@ export default function TasksList() {
             <h1 className="text-lg font-bold">
               {FOLDERS.find(f => f.id === folder)?.label ?? "Tasks"}
             </h1>
-            <Badge variant="secondary">{tasks.length}</Badge>
+            {!isLoading && <Badge variant="secondary">{tasks.length}</Badge>}
             {priority !== "All" && (
               <Badge variant="outline" className="text-xs">{priority} priority</Badge>
             )}

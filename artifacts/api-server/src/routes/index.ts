@@ -29,10 +29,12 @@ import communicationHistoryRouter from "./communicationHistory";
 import eventContactsRouter from "./eventContacts";
 import eventPersonnelRouter from "./eventPersonnel";
 import catalogItemsRouter from "./catalogItems";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(searchRouter);
 router.use("/events", eventsRouter);
 router.use("/events", financialsRouter);
 router.use("/events/:id/contacts", eventContactsRouter);

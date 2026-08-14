@@ -2024,11 +2024,30 @@ function AddMenuDialog({
   };
 
   const handleAdd = async () => {
+    let added = 0;
     for (const templateId of selected) {
-      await addTemplate.mutateAsync({ id: functionId, data: { templateId } });
+      try {
+        await addTemplate.mutateAsync({ id: functionId, data: { templateId } });
+        added++;
+      } catch (err: any) {
+        // The server returns 409 when this template is already on the function.
+        // Adding a second copy is legitimate -- a second bar setup, say -- but
+        // it must be a deliberate choice, never a silent double-charge.
+        const detail = err?.response?.data ?? err?.data ?? {};
+        if (detail?.error === "duplicate_template") {
+          const proceed = window.confirm(
+            `${detail.message}\n\nIt will be labelled "(${(detail.existingCount ?? 1) + 1})" so the copies are distinguishable on the BEO.`
+          );
+          if (!proceed) continue;
+          await addTemplate.mutateAsync({ id: functionId, data: { templateId, confirmDuplicate: true } as any });
+          added++;
+        } else {
+          toast({ title: "Could not add menu", description: detail?.message ?? String(err), variant: "destructive" });
+        }
+      }
     }
     queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
-    toast({ title: `${selected.length} menu(s) added` });
+    if (added > 0) toast({ title: `${added} menu(s) added` });
     onClose();
   };
 
