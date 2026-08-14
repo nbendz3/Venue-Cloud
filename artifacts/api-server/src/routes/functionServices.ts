@@ -10,6 +10,7 @@ import {
   revenueCentersTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { calculateFunctionPricing } from "../services/pricing.js";
 
 const router = Router();
 
@@ -76,7 +77,39 @@ router.get("/:id/menus", async (req, res) => {
       })
     );
 
-    res.json(result);
+    // Overlay server-computed money so the client never has to calculate it.
+    // Line totals reflect only SELECTED items; unselected items are priced at
+    // zero because attaching a template makes an item available, not ordered.
+    const pricing = await calculateFunctionPricing(functionId);
+    const lineById = new Map(pricing.lines.map((l) => [l.serviceItemId, l]));
+
+    const priced = result.map((menu) => {
+      const mt = pricing.menuTotals[menu.id] ?? { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
+      return {
+        ...menu,
+        menuTotalCharges: String(mt.charges),
+        menuTotalCost: String(mt.cost),
+        selectedCount: mt.selectedCount,
+        itemCount: mt.itemCount,
+        serviceTypes: (menu.serviceTypes ?? []).map((st) => {
+          const stt = pricing.serviceTypeTotals[st.id] ?? { charges: 0, cost: 0, selectedCount: 0, itemCount: 0 };
+          return {
+            ...st,
+            serviceTypeTotalCharges: String(stt.charges),
+            serviceTypeTotalCost: String(stt.cost),
+            selectedCount: stt.selectedCount,
+            itemCount: stt.itemCount,
+            items: (st.items ?? []).map((item) => ({
+              ...item,
+              itemTotal: String(lineById.get(item.id)?.lineTotal ?? 0),
+              lineCost: String(lineById.get(item.id)?.lineCost ?? 0),
+            })),
+          };
+        }),
+      };
+    });
+
+    res.json(priced);
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -131,6 +164,8 @@ router.post("/:id/add-menu-template", async (req, res) => {
         sortOrder: menuTemplateItemsTable.sortOrder,
         itemName: catalogItemsTable.name,
         catalogPrice: catalogItemsTable.price,
+        // Cost must be carried across or margin reporting is dead on arrival.
+        catalogCost: catalogItemsTable.cost,
         revenueCenterId: catalogItemsTable.revenueCenterId,
       })
       .from(menuTemplateItemsTable)
@@ -149,7 +184,6 @@ router.post("/:id/add-menu-template", async (req, res) => {
       for (const ti of templateItems) {
         const price = ti.priceOverride ?? ti.catalogPrice ?? null;
         const qty = ti.quantity ?? "1";
-        const itemTotal = price ? (parseFloat(qty) * parseFloat(price)).toFixed(2) : null;
         const [newItem] = await db
           .insert(serviceItemsTable)
           .values({
@@ -158,9 +192,13 @@ router.post("/:id/add-menu-template", async (req, res) => {
             notes: ti.notes,
             quantity: qty,
             aLaCartePrice: price,
+            cost: ti.catalogCost,
             revenueCenterId: ti.revenueCenterId,
             sectionName: ti.sectionName,
-            itemTotal,
+            // Attaching a template makes items AVAILABLE, not ordered. Nothing
+            // is billable until someone ticks it in the services builder.
+            selected: false,
+            itemTotal: "0.00",
           })
           .returning();
         insertedItems.push(newItem);
@@ -261,6 +299,13 @@ router.post("/:id/menus/:menuId/copy", async (req, res) => {
             appliedRates: item.appliedRates,
             sectionName: item.sectionName,
             revenueCenterId: item.revenueCenterId,
+            // A copied menu must keep the same selections, otherwise
+            // duplicating a priced menu silently zeroes it out.
+            selected: item.selected,
+            chargeHourly: item.chargeHourly,
+            numHours: item.numHours,
+            markItemInternal: item.markItemInternal,
+            quantityPrecision: item.quantityPrecision,
           })
           .returning();
         newItems.push(newItem);
