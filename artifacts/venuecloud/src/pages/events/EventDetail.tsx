@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateOnly } from "@/lib/date";
 
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -424,13 +425,13 @@ export default function EventDetail() {
                       <DetailField label="Start Date">
                         {event.startDate
                           ? <Link href={`/events/calendar`} className="text-primary hover:underline font-medium">
-                              {new Date(event.startDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                              {formatDateOnly(event.startDate as string, "long")}
                             </Link>
                           : <span className="font-medium">TBD</span>}
                       </DetailField>
                       <DetailField label="End Date">
                         <span className="font-medium">
-                          {event.endDate ? new Date(event.endDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '—'}
+                          {formatDateOnly(event.endDate as string, "long")}
                         </span>
                       </DetailField>
                       <DetailField label="Event Lifecycle Model">

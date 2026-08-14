@@ -14,6 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUpdateTask, getListTasksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { formatDateOnly } from "@/lib/date";
 
 const SECTIONS = [
   "Lead Details", "Event Details", "Budget & Value", "Notes", "Tasks", "Communication History"
@@ -165,7 +166,7 @@ export default function LeadDetail() {
               <Card>
                 <CardContent className="p-6 grid grid-cols-2 gap-6">
                   <Field label="Event Date">
-                    {lead.eventDate ? new Date(lead.eventDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '-'}
+                    {formatDateOnly(lead.eventDate, "long", "-")}
                   </Field>
                   <Field label="Function Type">{lead.functionType || '-'}</Field>
                   <Field label="Start Time">{lead.startTime || '-'}</Field>
@@ -283,7 +284,7 @@ export default function LeadDetail() {
                             </TableCell>
                             <TableCell>
                               <span className={isOverdue ? "text-red-600 font-semibold" : "text-muted-foreground"}>
-                                {task.dueDate ? new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"}
+                                {formatDateOnly(task.dueDate, "medium", "-")}
                               </span>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{task.salesperson || "-"}</TableCell>

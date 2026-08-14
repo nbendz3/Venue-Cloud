@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { formatDateOnly } from "@/lib/date";
 
 const SECTIONS = [
   "Account Details", "Address Information", "Contacts", "Events", "Leads", "Notes", "Tasks", "Attachments"
@@ -235,7 +236,7 @@ export default function AccountDetail() {
                               <Badge variant="outline" className={`text-xs ${getStatusColor(e.eventStatus)}`}>{e.eventStatus}</Badge>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              {e.startDate ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                              {formatDateOnly(e.startDate, "medium", "TBD")}
                             </TableCell>
                             <TableCell className="text-right text-muted-foreground">{e.estimatedAttendance ?? "—"}</TableCell>
                             <TableCell className="text-muted-foreground">{e.owner || "—"}</TableCell>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Calendar as CalendarIcon } from "lucide-react";
 import { useState } from "react";
+import { formatDateOnly } from "@/lib/date";
 
 export function getStatusColor(status: string) {
   switch (status) {
@@ -98,8 +99,8 @@ export default function EventsList() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{event.accountName}</TableCell>
                     <TableCell className="text-sm">
-                      {event.startDate ? new Date(event.startDate).toLocaleDateString() : 'TBD'}
-                      {event.endDate && event.endDate !== event.startDate ? ` - ${new Date(event.endDate).toLocaleDateString()}` : ''}
+                      {formatDateOnly(event.startDate, "short", "TBD")}
+                      {event.endDate && event.endDate !== event.startDate ? ` - ${formatDateOnly(event.endDate, "short", "")}` : ''}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={getStatusColor(event.eventStatus)}>

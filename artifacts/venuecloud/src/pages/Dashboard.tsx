@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { CalendarDays, Activity } from "lucide-react";
+import { formatDateOnly } from "@/lib/date";
 
 type UpcomingEvent = {
   id: number;
@@ -170,7 +171,7 @@ export default function Dashboard() {
                       <Link href={`/events/${e.id}`} className="font-medium text-primary hover:underline">{e.eventName}</Link>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {e.startDate ? new Date(e.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "TBD"}
+                      {formatDateOnly(e.startDate, "medium", "TBD")}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-xs ${getStatusColor(e.eventStatus)}`}>{e.eventStatus}</Badge>

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Plus, CheckCircle2, ListTodo, AlertCircle, CheckCheck, ClipboardList, User, Calendar } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { formatDateOnly } from "@/lib/date";
 
 type Folder = "All" | "My" | "Overdue" | "Completed";
 type Priority = "All" | "High" | "Medium" | "Low";
@@ -266,7 +267,7 @@ export default function TasksList() {
                       </TableCell>
                       <TableCell>
                         <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>
-                          {task.dueDate ? new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : '-'}
+                          {formatDateOnly(task.dueDate, "medium", "-")}
                         </span>
                         {isOverdue && (
                           <span className="ml-1.5 text-xs text-red-500">Overdue</span>

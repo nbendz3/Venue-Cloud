@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { formatDateOnly } from "@/lib/date";
 
 export function getLeadStatusColor(status: string) {
   switch (status) {
@@ -88,7 +89,7 @@ export default function LeadsList() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{lead.primaryContactName || '-'}</TableCell>
                     <TableCell className="text-sm">
-                      {lead.eventDate ? new Date(lead.eventDate).toLocaleDateString() : 'TBD'}
+                      {formatDateOnly(lead.eventDate, "short", "TBD")}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={getLeadStatusColor(lead.leadStatus)}>
