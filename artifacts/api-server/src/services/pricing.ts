@@ -8,7 +8,8 @@
  * Design rules:
  *
  *  1. Rates are configuration, never constants. Sales tax and occupancy tax
- *     come from `revenue_centers`; service charges and gratuity come from
+ *     come from `revenue_centers`; the service charge / gratuity comes from
+ *     `applied_rates` (optionally scoped per revenue centre), falling back to
  *     `service_fees`. If a rate is not configured the result is zero and a
  *     warning is emitted. We never silently substitute an invented default —
  *     a wrong number on a signed BEO is worse than a visibly missing one.
@@ -17,7 +18,15 @@
  *     Attaching a menu template makes items *available*; checking them makes
  *     them *ordered*.
  *
- *  3. Rounding happens once, at the revenue-center subtotal, never per line.
+ *  3. Each item's `appliedRates` decides what it may attract: "Gratuity and
+ *     Sales Tax" (the default), "Sales Tax Only", "Gratuity Only", or "None".
+ *
+ *  4. Multiple configured gratuities are AMBIGUOUS, not additive. A property
+ *     with both "Gratuity 22%" and "Gratuity 20%" means one applies; summing
+ *     them to 42% is the same class of silent overcharge this engine exists
+ *     to prevent. When we cannot tell which applies we charge none and say so.
+ *
+ *  5. Rounding happens once, at the revenue-centre subtotal, never per line.
  */
 
 import { db } from "@workspace/db";
@@ -28,6 +37,7 @@ import {
   serviceItemsTable,
   revenueCentersTable,
   serviceFeesTable,
+  appliedRatesTable,
   adjustmentsTable,
   additionalFeesTable,
   paymentsTable,
@@ -54,6 +64,10 @@ export interface PricedLine {
   revenueCenterName: string;
   /** Internal items appear on the BEO for staff but are never charged. */
   isInternal: boolean;
+  /** Raw policy label from the item, e.g. "Sales Tax Only". */
+  appliedRates: string | null;
+  /** That label resolved into what the line may attract. */
+  policy: RatePolicy;
 }
 
 export interface RevenueCenterTotals {
@@ -187,26 +201,72 @@ function emptyTotals(): PricingTotals {
 /* Rate configuration                                                         */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * IMPORTANT — the two rate tables use DIFFERENT UNITS:
+ *
+ *   revenue_centers.sales_tax_rate  PERCENT   e.g. 7.7500 means 7.75%
+ *   service_fees.rate_percent       PERCENT   e.g. 22.0000 means 22%
+ *   applied_rates.rate              FRACTION  e.g. 0.2200 means 22%
+ *
+ * Everything is normalised to a FRACTION at the boundary below. Getting this
+ * wrong is a 100x error, so the conversion happens in exactly one place per
+ * source and nowhere else.
+ */
+const asFractionFromPercent = (v: unknown) => toNum(v, 0) / 100;
+const asFraction = (v: unknown) => toNum(v, 0);
+
+/** Per-item policy vocabulary, matching the Applied Rates picker in the UI. */
+export type RatePolicy = { serviceCharge: boolean; salesTax: boolean };
+
+/**
+ * Resolves an item's `appliedRates` label into what may be charged on it.
+ * A null/unrecognised value means "Gratuity and Sales Tax", which is the
+ * default the Add Item dialog uses.
+ */
+export function resolvePolicy(appliedRates: string | null | undefined): RatePolicy {
+  const v = (appliedRates ?? "").trim().toLowerCase();
+  if (v === "none") return { serviceCharge: false, salesTax: false };
+  if (v === "sales tax only") return { serviceCharge: false, salesTax: true };
+  if (v === "gratuity only") return { serviceCharge: true, salesTax: false };
+  return { serviceCharge: true, salesTax: true };
+}
+
+export interface ResolvedFee {
+  name: string;
+  /** Fraction, e.g. 0.22 */
+  rate: number;
+  isTaxable: boolean;
+  isGratuity: boolean;
+}
+
 interface RateConfig {
   revenueCentersById: Map<number, typeof revenueCentersTable.$inferSelect>;
   defaultRevenueCenter: typeof revenueCentersTable.$inferSelect | null;
-  serviceFees: (typeof serviceFeesTable.$inferSelect)[];
+  /** Service charge / gratuity applicable to a given revenue center. */
+  feesForRevenueCenter: (revenueCenterId: number | null) => ResolvedFee[];
   warnings: string[];
 }
 
 /**
- * A service fee named like a gratuity is reported in the `gratuity` bucket so
- * the UI can show it on its own line; everything else rolls into
- * `serviceCharge`. Both are computed identically — this is presentation only.
+ * A fee named like a gratuity is reported on its own line so the UI can show
+ * "Gratuity" separately from "Service Charge". Both compute identically.
  */
-function isGratuityFee(fee: { name: string }): boolean {
-  return /gratuit|tip/i.test(fee.name);
+function isGratuityName(name: string): boolean {
+  return /gratuit|tip/i.test(name);
 }
 
+function isServiceChargeName(name: string): boolean {
+  return /gratuit|tip|service charge/i.test(name);
+}
+
+/** The four policy labels live in applied_rates too; they are not rates. */
+const POLICY_LABELS = new Set(["gratuity and sales tax", "sales tax only", "gratuity only", "none"]);
+
 export async function loadRateConfig(): Promise<RateConfig> {
-  const [revCenters, serviceFees] = await Promise.all([
+  const [revCenters, serviceFees, appliedRates] = await Promise.all([
     db.select().from(revenueCentersTable),
     db.select().from(serviceFeesTable),
+    db.select().from(appliedRatesTable),
   ]);
 
   const warnings: string[] = [];
@@ -218,13 +278,81 @@ export async function loadRateConfig(): Promise<RateConfig> {
     warnings.push(
       "No default revenue center is set. Items without a revenue center are excluded from tax. Set one in Settings > Revenue Centers."
     );
-  }
-
-  if (serviceFees.length === 0) {
+  } else if (toNum(defaultRevenueCenter.salesTaxRate, 0) === 0 && toNum(defaultRevenueCenter.occupancyTaxRate, 0) === 0) {
     warnings.push(
-      "No service fees are configured, so service charge and gratuity are $0. Add them in Settings > Financial."
+      `The default revenue center ("${defaultRevenueCenter.name}") has no tax rate, so items without their own revenue center are taxed at 0%.`
     );
   }
+
+  // applied_rates rows that carry an actual rate (as opposed to the four
+  // policy labels) are the authoritative source, because they can be scoped
+  // to a revenue center. Fractions here, not percents.
+  const namedRates = appliedRates.filter(
+    (r) => r.isActive !== false && !POLICY_LABELS.has(r.name.trim().toLowerCase()) && r.rate != null
+  );
+
+  const scopedServiceCharges = namedRates.filter((r) => isServiceChargeName(r.name));
+
+  const buildFromApplied = (revenueCenterId: number | null): ResolvedFee[] | null => {
+    const scoped = scopedServiceCharges.filter((r) => r.revenueCenterId === revenueCenterId);
+    const unscoped = scopedServiceCharges.filter((r) => r.revenueCenterId == null);
+    const chosen = scoped.length > 0 ? scoped : unscoped;
+    if (chosen.length === 0) return null;
+    return chosen.map((r) => ({
+      name: r.name,
+      rate: asFraction(r.rate),
+      // applied_rates carries no taxable flag; a service charge is treated as
+      // non-taxable unless a matching service_fees row says otherwise.
+      isTaxable: serviceFees.find((f) => f.name.trim() === r.name.trim())?.isTaxable === true,
+      isGratuity: isGratuityName(r.name),
+    }));
+  };
+
+  // Fallback to service_fees only when applied_rates says nothing. Crucially we
+  // NEVER sum multiple service fees: a property with both "Gratuity 22%" and
+  // "Gratuity 20%" rows means one of them applies, not 42% of both. Summing
+  // them is exactly the kind of silent overcharge this engine exists to stop.
+  const feeFallback: ResolvedFee[] = serviceFees.map((f) => ({
+    name: f.name,
+    rate: asFractionFromPercent(f.ratePercent),
+    isTaxable: f.isTaxable === true,
+    isGratuity: isGratuityName(f.name),
+  }));
+
+  // Two fees of the SAME KIND are rivals, not additions: "Gratuity 22%" and
+  // "Gratuity 20%" means one applies. Fees of DIFFERENT kinds legitimately
+  // stack — a 22% gratuity plus a 3% administrative fee is normal.
+  const kindOf = (f: ResolvedFee) =>
+    f.isGratuity ? "gratuity" : /service charge/i.test(f.name) ? "service-charge" : `other:${f.name.trim().toLowerCase()}`;
+  const countsByKind = new Map<string, number>();
+  for (const f of feeFallback) countsByKind.set(kindOf(f), (countsByKind.get(kindOf(f)) ?? 0) + 1);
+  const rivalKinds = [...countsByKind.entries()].filter(([, n]) => n > 1).map(([k]) => k);
+  const ambiguousFallback = rivalKinds.length > 0;
+
+  if (serviceFees.length === 0 && scopedServiceCharges.length === 0) {
+    warnings.push(
+      "No service charge or gratuity is configured, so both are $0. Add one in Settings > Financial."
+    );
+  }
+
+  if (ambiguousFallback && scopedServiceCharges.length === 0) {
+    const rivals = feeFallback
+      .filter((f) => rivalKinds.includes(kindOf(f)))
+      .map((f) => `${f.name} ${(f.rate * 100).toFixed(2)}%`)
+      .join(", ");
+    warnings.push(
+      `More than one gratuity or service charge of the same kind is configured (${rivals}) and nothing says which applies. ` +
+        "None is being charged, because summing them would overcharge. " +
+        "Name the one that applies in Settings > Applied Rates, scoped to a revenue center if it varies."
+    );
+  }
+
+  const feesForRevenueCenter = (revenueCenterId: number | null): ResolvedFee[] => {
+    const fromApplied = buildFromApplied(revenueCenterId);
+    if (fromApplied) return fromApplied;
+    // Drop only the kinds that are ambiguous; unrelated fees still apply.
+    return feeFallback.filter((f) => !rivalKinds.includes(kindOf(f)));
+  };
 
   const untaxed = revCenters.filter(
     (rc) => rc.isActive !== false && toNum(rc.salesTaxRate, 0) === 0 && toNum(rc.occupancyTaxRate, 0) === 0
@@ -235,7 +363,7 @@ export async function loadRateConfig(): Promise<RateConfig> {
     );
   }
 
-  return { revenueCentersById, defaultRevenueCenter, serviceFees, warnings };
+  return { revenueCentersById, defaultRevenueCenter, feesForRevenueCenter, warnings };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -245,19 +373,22 @@ export async function loadRateConfig(): Promise<RateConfig> {
 interface Bucket {
   revenueCenterId: number | null;
   revenueCenterName: string;
+  /** Which rates this group of charges is allowed to attract. */
+  policy: RatePolicy;
   charges: number;
   cost: number;
 }
 
 /**
- * Applies service fees and taxes to a set of per-revenue-center charge buckets.
+ * Applies service charges and taxes to per-(revenue centre, policy) buckets.
  *
  * Order of operations:
- *   adjusted   = charges - adjustments (pro-rated across centers by charge share)
- *   fees       = adjusted x each configured service fee rate
+ *   adjusted   = charges - adjustments (pro-rated by share of charges)
+ *   fees       = adjusted x the ONE applicable service charge rate, but only
+ *                where the item's policy allows a service charge
  *   taxable    = adjusted + (fees flagged taxable)
- *   sales tax  = taxable x that center's sales tax rate
- *   occ tax    = taxable x that center's occupancy tax rate
+ *   sales tax  = taxable x the centre's rate, but only where the item's policy
+ *                allows sales tax
  */
 function applyRates(
   buckets: Bucket[],
@@ -266,50 +397,84 @@ function applyRates(
 ): { rows: RevenueCenterTotals[]; totals: PricingTotals } {
   const grossCharges = buckets.reduce((s, b) => s + b.charges, 0);
 
-  const rows: RevenueCenterTotals[] = buckets.map((bucket) => {
-    // Pro-rate adjustments by share of charges rather than splitting evenly
-    // across centers — an even split moves money between revenue centers.
+  // Compute per bucket, then merge buckets that share a revenue centre so the
+  // UI still shows one row per centre.
+  const merged = new Map<string, RevenueCenterTotals>();
+
+  for (const bucket of buckets) {
     const share = grossCharges > 0 ? bucket.charges / grossCharges : 0;
     const adjustments = totalAdjustments * share;
     const adjustedCharges = Math.max(0, bucket.charges - adjustments);
 
     const rc = bucket.revenueCenterId != null ? config.revenueCentersById.get(bucket.revenueCenterId) : undefined;
-    const salesTaxRate = toNum(rc?.salesTaxRate, 0) / 100;
-    const occupancyTaxRate = toNum(rc?.occupancyTaxRate, 0) / 100;
+    const salesTaxRate = bucket.policy.salesTax ? asFractionFromPercent(rc?.salesTaxRate) : 0;
+    const occupancyTaxRate = bucket.policy.salesTax ? asFractionFromPercent(rc?.occupancyTaxRate) : 0;
 
     let serviceCharge = 0;
     let gratuity = 0;
     let taxableFees = 0;
 
-    for (const fee of config.serviceFees) {
-      const amount = adjustedCharges * (toNum(fee.ratePercent, 0) / 100);
-      if (amount === 0) continue;
-      if (isGratuityFee(fee)) gratuity += amount;
-      else serviceCharge += amount;
-      if (fee.isTaxable === true) taxableFees += amount;
+    if (bucket.policy.serviceCharge) {
+      for (const fee of config.feesForRevenueCenter(bucket.revenueCenterId)) {
+        const amount = adjustedCharges * fee.rate;
+        if (amount === 0) continue;
+        if (fee.isGratuity) gratuity += amount;
+        else serviceCharge += amount;
+        if (fee.isTaxable) taxableFees += amount;
+      }
     }
 
     const taxableBase = adjustedCharges + taxableFees;
     const salesTax = taxableBase * salesTaxRate;
     const occupancyTax = taxableBase * occupancyTaxRate;
-
     const total = adjustedCharges + serviceCharge + gratuity + salesTax + occupancyTax;
-    const margin = adjustedCharges - bucket.cost;
 
+    const key = String(bucket.revenueCenterId ?? "none");
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        revenueCenterId: bucket.revenueCenterId,
+        revenueCenterName: bucket.revenueCenterName,
+        charges: bucket.charges,
+        adjustments,
+        adjustedCharges,
+        serviceCharge,
+        gratuity,
+        salesTax,
+        occupancyTax,
+        total,
+        cost: bucket.cost,
+        margin: 0,
+        marginPercent: 0,
+      });
+    } else {
+      existing.charges += bucket.charges;
+      existing.adjustments += adjustments;
+      existing.adjustedCharges += adjustedCharges;
+      existing.serviceCharge += serviceCharge;
+      existing.gratuity += gratuity;
+      existing.salesTax += salesTax;
+      existing.occupancyTax += occupancyTax;
+      existing.total += total;
+      existing.cost += bucket.cost;
+    }
+  }
+
+  const rows = [...merged.values()].map((r) => {
+    const margin = r.adjustedCharges - r.cost;
     return {
-      revenueCenterId: bucket.revenueCenterId,
-      revenueCenterName: bucket.revenueCenterName,
-      charges: round2(bucket.charges),
-      adjustments: round2(adjustments),
-      adjustedCharges: round2(adjustedCharges),
-      serviceCharge: round2(serviceCharge),
-      gratuity: round2(gratuity),
-      salesTax: round2(salesTax),
-      occupancyTax: round2(occupancyTax),
-      total: round2(total),
-      cost: round2(bucket.cost),
+      ...r,
+      charges: round2(r.charges),
+      adjustments: round2(r.adjustments),
+      adjustedCharges: round2(r.adjustedCharges),
+      serviceCharge: round2(r.serviceCharge),
+      gratuity: round2(r.gratuity),
+      salesTax: round2(r.salesTax),
+      occupancyTax: round2(r.occupancyTax),
+      total: round2(r.total),
+      cost: round2(r.cost),
       margin: round2(margin),
-      marginPercent: adjustedCharges > 0 ? round2((margin / adjustedCharges) * 100) : 0,
+      marginPercent: r.adjustedCharges > 0 ? round2((margin / r.adjustedCharges) * 100) : 0,
     };
   });
 
@@ -330,7 +495,6 @@ function applyRates(
 
   totals.margin = round2(totals.adjustedCharges - totals.cost);
   totals.marginPercent = totals.adjustedCharges > 0 ? round2((totals.margin / totals.adjustedCharges) * 100) : 0;
-
   for (const k of Object.keys(totals) as (keyof PricingTotals)[]) totals[k] = round2(totals[k]);
 
   return { rows, totals };
@@ -411,6 +575,8 @@ export async function calculateFunctionPricing(
       revenueCenterId: rcId,
       revenueCenterName: rcName,
       isInternal: item.markItemInternal === true,
+      appliedRates: item.appliedRates ?? null,
+      policy: resolvePolicy(item.appliedRates),
     });
 
     menuTotals[menuId].charges += lineTotal;
@@ -421,10 +587,14 @@ export async function calculateFunctionPricing(
     serviceTypeTotals[item.serviceTypeId].cost += lineCost;
     serviceTypeTotals[item.serviceTypeId].selectedCount += 1;
 
-    const key = String(rcId ?? "none");
+    // Bucket by revenue centre AND policy: two items in the same centre can
+    // legitimately attract different rates ("Gratuity Only" vs "None").
+    const policy = resolvePolicy(item.appliedRates);
+    const key = `${rcId ?? "none"}|${policy.serviceCharge ? 1 : 0}${policy.salesTax ? 1 : 0}`;
     const bucket = bucketsByRc.get(key) ?? {
       revenueCenterId: rcId,
       revenueCenterName: rcName,
+      policy,
       charges: 0,
       cost: 0,
     };

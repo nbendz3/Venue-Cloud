@@ -25,6 +25,7 @@ import {
   functionMenusTable,
   serviceTypesTable,
   serviceItemsTable,
+  appliedRatesTable,
 } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -36,7 +37,8 @@ if (process.env.ALLOW_DESTRUCTIVE_SEED !== "yes") {
 async function main() {
   await db.execute(
     sql`TRUNCATE TABLE service_items, service_types, function_menus, menu_template_items, menu_templates,
-        catalog_items, functions, events, locations, revenue_centers, service_fees RESTART IDENTITY CASCADE`
+        catalog_items, functions, events, locations, revenue_centers, service_fees, applied_rates
+        RESTART IDENTITY CASCADE`
   );
 
   /* ---------------------------------------------------------------- config */
@@ -60,7 +62,24 @@ async function main() {
   const RC_BEVERAGE = 4;
   const RC_RENTALS = 1;
 
-  // service_fees intentionally left EMPTY, exactly as in production.
+  // Mirrors the real property: TWO gratuity rows exist in service_fees. They
+  // are alternatives, not additive — an engine that sums them charges 42%.
+  await db.insert(serviceFeesTable).values([
+    { name: "Gratuity 22%", ratePercent: "22.0000", isTaxable: false },
+    { name: "Gratuity 20%", ratePercent: "20.0000", isTaxable: false },
+  ]);
+
+  // applied_rates carries both the four policy LABELS and named RATES.
+  // Note the unit difference: rate is a FRACTION here (0.2200 = 22%), whereas
+  // service_fees.rate_percent and revenue_centers.sales_tax_rate are PERCENTS.
+  await db.insert(appliedRatesTable).values([
+    { name: "Gratuity and Sales Tax", isActive: true },
+    { name: "Sales Tax Only", isActive: true },
+    { name: "Gratuity Only", isActive: true },
+    { name: "None", isActive: true },
+    { name: "Standard Service Charge", rate: "0.2200", isActive: true },
+    { name: "Standard Tax", rate: "0.0800", isActive: true },
+  ]);
 
   await db.insert(locationsTable).values([
     { name: "Grand Ballroom", code: "GBALL", capacity: 400, site: "Main", description: "Elegant grand ballroom with chandeliers and hardwood floors" },
@@ -150,8 +169,13 @@ async function main() {
       if (!isSelected) remaining -= price;
       else remaining -= 160;
 
+      // Spread the four policies across items so exemptions are covered.
+      const policy =
+        i % 4 === 1 ? "Sales Tax Only" : i % 4 === 2 ? "Gratuity Only" : i % 4 === 3 ? "None" : "Gratuity and Sales Tax";
+
       rows.push({
         serviceTypeId: st.id,
+        appliedRates: policy,
         itemName: `${spec.name} item ${i + 1}`,
         quantity: "1.0000",
         aLaCartePrice: price.toFixed(2),

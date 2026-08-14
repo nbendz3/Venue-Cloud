@@ -7,9 +7,10 @@
  */
 
 import { db } from "@workspace/db";
-import { revenueCentersTable, serviceFeesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { revenueCentersTable, serviceFeesTable, appliedRatesTable, serviceItemsTable } from "@workspace/db";
+import { eq, isNotNull } from "drizzle-orm";
 import {
+  resolvePolicy,
   calculateFunctionPricing,
   calculateEventPricing,
   computeLineTotal,
@@ -19,6 +20,9 @@ import {
 
 let failures = 0;
 
+/** Gratuity and service charge are the same money under two labels. */
+const feeTotal = (t: { serviceCharge: number; gratuity: number }) => round2(t.serviceCharge + t.gratuity);
+
 function check(label: string, actual: unknown, expected: unknown) {
   const ok = JSON.stringify(actual) === JSON.stringify(expected);
   if (!ok) failures++;
@@ -26,13 +30,22 @@ function check(label: string, actual: unknown, expected: unknown) {
 }
 
 async function main() {
-  // Make the run repeatable: clear any rate configuration left behind by a
-  // previous run, so phase 1 always starts from "nothing configured".
   if (process.env.ALLOW_DESTRUCTIVE_SEED !== "yes") { console.error("Refusing to run: this rewrites tax and service-fee configuration. Point DATABASE_URL at a dev database and set ALLOW_DESTRUCTIVE_SEED=yes."); process.exit(1); }
-  await db.delete(serviceFeesTable);
-  await db
-    .update(revenueCentersTable)
-    .set({ isDefault: false, salesTaxRate: null, occupancyTaxRate: null });
+
+  /** Return the fixture to "no rates configured at all". */
+  async function clearRateConfig() {
+    await db.delete(serviceFeesTable);
+    // Keep the four policy LABELS; drop any row that carries an actual rate.
+    await db.delete(appliedRatesTable).where(isNotNull(appliedRatesTable.rate));
+    await db
+      .update(revenueCentersTable)
+      .set({ isDefault: false, salesTaxRate: null, occupancyTaxRate: null });
+    // The per-item policy assertions below mutate items; restore the default
+    // so a second run starts from the same place as the first.
+    await db.update(serviceItemsTable).set({ appliedRates: "Gratuity and Sales Tax" });
+  }
+
+  await clearRateConfig();
 
   /* ------------------------------------------------------- pure functions */
   check("unselected item is not billable", isBillable({ selected: false, quantity: "1" }), false);
@@ -54,7 +67,7 @@ async function main() {
 
   check("function 1 billable line count", fn.lines.length, 1);
   check("function 1 charges (was 6053.00)", fn.totals.charges, 160);
-  check("no service fees configured -> gratuity is 0", fn.totals.gratuity, 0);
+  check("nothing configured -> no service charge", feeTotal(fn.totals), 0);
   check("no tax rates configured -> sales tax is 0", fn.totals.salesTax, 0);
   check("function 1 total", fn.totals.total, 160);
 
@@ -72,7 +85,7 @@ async function main() {
     77
   );
 
-  check("warns that service fees are unconfigured", fn.warnings.some((w) => /service fees/i.test(w)), true);
+  check("warns that no service charge is configured", fn.warnings.some((w) => /service charge or gratuity/i.test(w)), true);
   check("warns that no default revenue center is set", fn.warnings.some((w) => /default revenue center/i.test(w)), true);
 
   /* ------------------------------------------------------------- event */
@@ -81,30 +94,80 @@ async function main() {
   check("event balance due", ev.balanceDue, 160);
   check("event has two functions", ev.functions.length, 2);
 
+  /* --------------------------------------------- per-item rate policy ---- */
+  check("null policy defaults to gratuity + tax", resolvePolicy(null), { serviceCharge: true, salesTax: true });
+  check("'None' attracts nothing", resolvePolicy("None"), { serviceCharge: false, salesTax: false });
+  check("'Sales Tax Only'", resolvePolicy("Sales Tax Only"), { serviceCharge: false, salesTax: true });
+  check("'Gratuity Only'", resolvePolicy("Gratuity Only"), { serviceCharge: true, salesTax: false });
+  check("policy match is case-insensitive", resolvePolicy("  sales tax only "), { serviceCharge: false, salesTax: true });
+
   /* ------------------------------- with rates actually configured ------- */
-  // Prove that tax and gratuity are driven by configuration rather than by
-  // constants baked into the code.
-  await db.update(revenueCentersTable).set({ isDefault: false });
+  // The property has TWO rival gratuities in service_fees (22% and 20%), and
+  // names the one that actually applies in applied_rates. This is the exact
+  // configuration that made the first version of this engine charge 42%.
+  await db.insert(serviceFeesTable).values([
+    { name: "Gratuity 22%", ratePercent: "22.0000", isTaxable: false },
+    { name: "Gratuity 20%", ratePercent: "20.0000", isTaxable: false },
+  ]);
+  await db.insert(appliedRatesTable).values([
+    { name: "Standard Service Charge", rate: "0.2200", isActive: true },
+  ]);
   await db
     .update(revenueCentersTable)
     .set({ isDefault: true, salesTaxRate: "8.0000", occupancyTaxRate: "0.0000" })
     .where(eq(revenueCentersTable.name, "Food"));
-  await db.insert(serviceFeesTable).values([
-    { name: "Gratuity 22%", ratePercent: "22.0000", isTaxable: false },
-  ]);
 
   const fn2 = await calculateFunctionPricing(1);
   check("charges unchanged by rate config", fn2.totals.charges, 160);
-  check("gratuity now 22% of 160", fn2.totals.gratuity, 35.2);
-  check("sales tax now 8% of 160", fn2.totals.salesTax, 12.8);
+  check("ONE 22% charge applies, not the sum of both (42%)", feeTotal(fn2.totals), 35.2);
+  check("sales tax is 8% of 160", fn2.totals.salesTax, 12.8);
   check("grand total = 160 + 35.20 + 12.80", fn2.totals.total, 208);
-  check("no rate warnings once configured", fn2.warnings.length, 0);
   check("item lands in the default revenue center", fn2.byRevenueCenter[0]?.revenueCenterName, "Food");
+  check("no rate warnings once configured", fn2.warnings.length, 0);
 
-  // Taxable service fees must widen the tax base.
+  /* --------------------------- ambiguity must never become an overcharge - */
+  await db.delete(appliedRatesTable).where(eq(appliedRatesTable.name, "Standard Service Charge"));
+  const fnAmbig = await calculateFunctionPricing(1);
+  check("two rival gratuities => charge none, never 42%", feeTotal(fnAmbig.totals), 0);
+  check("and say so in a warning", fnAmbig.warnings.some((w) => /more than one gratuity/i.test(w)), true);
+
+  /* ------------------------------- a single fee is unambiguous, so charge - */
+  await db.delete(serviceFeesTable).where(eq(serviceFeesTable.name, "Gratuity 20%"));
+  const fnSingle = await calculateFunctionPricing(1);
+  check("single fee falls back correctly: 22% of 160", feeTotal(fnSingle.totals), 35.2);
+
+  /* -------------------------------------- units: percent vs fraction ----- */
+  // service_fees.rate_percent is a PERCENT (22.0000); applied_rates.rate is a
+  // FRACTION (0.2200). Both must yield the same money.
+  await db.insert(appliedRatesTable).values([{ name: "Standard Service Charge", rate: "0.2200", isActive: true }]);
+  const fnFraction = await calculateFunctionPricing(1);
+  check("fraction and percent sources agree", feeTotal(fnFraction.totals), feeTotal(fnSingle.totals));
+
+  /* ----------------------------------- taxable fees widen the tax base --- */
+  await db.delete(appliedRatesTable).where(eq(appliedRatesTable.name, "Standard Service Charge"));
   await db.update(serviceFeesTable).set({ isTaxable: true });
   const fn3 = await calculateFunctionPricing(1);
   check("taxable gratuity widens the tax base", fn3.totals.salesTax, 15.62);
+  await db.update(serviceFeesTable).set({ isTaxable: false });
+
+  /* ------------------------- per-item exemptions actually take effect ---- */
+  const selected = eq(serviceItemsTable.selected, true);
+
+  await db.update(serviceItemsTable).set({ appliedRates: "None" }).where(selected);
+  const fnNone = await calculateFunctionPricing(1);
+  check("'None' item still contributes charges", fnNone.totals.charges, 160);
+  check("'None' item attracts no gratuity", feeTotal(fnNone.totals), 0);
+  check("'None' item attracts no tax", fnNone.totals.salesTax, 0);
+
+  await db.update(serviceItemsTable).set({ appliedRates: "Sales Tax Only" }).where(selected);
+  const fnTaxOnly = await calculateFunctionPricing(1);
+  check("'Sales Tax Only' pays tax", fnTaxOnly.totals.salesTax, 12.8);
+  check("'Sales Tax Only' pays no gratuity", feeTotal(fnTaxOnly.totals), 0);
+
+  await db.update(serviceItemsTable).set({ appliedRates: "Gratuity Only" }).where(selected);
+  const fnGratOnly = await calculateFunctionPricing(1);
+  check("'Gratuity Only' pays gratuity", feeTotal(fnGratOnly.totals), 35.2);
+  check("'Gratuity Only' pays no tax", fnGratOnly.totals.salesTax, 0);
 
   console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
   process.exit(failures === 0 ? 0 : 1);
