@@ -18,7 +18,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(serviceTypesTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const items = await db
       .select()
       .from(serviceItemsTable)

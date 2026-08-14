@@ -42,7 +42,7 @@ router.get("/:id", async (req, res) => {
     const account = await db.query.accountsTable.findFirst({
       where: eq(accountsTable.id, id),
     });
-    if (!account) return res.status(404).json({ error: "Not found" });
+    if (!account) { res.status(404).json({ error: "Not found" }); return; }
     res.json(account);
   } catch (err) {
     req.log.error(err);
@@ -58,7 +58,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(accountsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);

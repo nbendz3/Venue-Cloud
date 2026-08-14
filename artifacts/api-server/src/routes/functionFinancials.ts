@@ -23,7 +23,7 @@ router.get("/:id/financials", async (req, res) => {
   try {
     const functionId = parseInt(req.params.id);
     const fn = await db.query.functionsTable.findFirst({ where: eq(functionsTable.id, functionId) });
-    if (!fn) return res.status(404).json({ error: "Function not found" });
+    if (!fn) { res.status(404).json({ error: "Function not found" }); return; }
 
     const pricing = await calculateFunctionPricing(functionId);
 
@@ -127,7 +127,7 @@ router.post("/:id/post", async (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
 
     const fn = await db.query.functionsTable.findFirst({ where: eq(functionsTable.id, functionId) });
-    if (!fn) return res.status(404).json({ error: "Function not found" });
+    if (!fn) { res.status(404).json({ error: "Function not found" }); return; }
 
     const pricing = await calculateFunctionPricing(functionId);
 

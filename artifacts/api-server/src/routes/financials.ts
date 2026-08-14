@@ -20,7 +20,7 @@ router.get("/:id/financials", async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
-    if (!event) return res.status(404).json({ error: "Event not found" });
+    if (!event) { res.status(404).json({ error: "Event not found" }); return; }
 
     const pricing = await calculateEventPricing(eventId);
 

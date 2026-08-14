@@ -46,7 +46,7 @@ router.put("/:id", async (req, res) => {
       .set(req.body)
       .where(eq(guestRoomBlocksTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({
       ...updated,
       avgRate: updated.avgRate ? parseFloat(updated.avgRate) : null,

@@ -178,7 +178,7 @@ router.get("/:id", async (req, res) => {
     const evt = await db.query.eventsTable.findFirst({
       where: eq(eventsTable.id, id),
     });
-    if (!evt) return res.status(404).json({ error: "Not found" });
+    if (!evt) { res.status(404).json({ error: "Not found" }); return; }
     let primaryContactName = null;
     let accountName = null;
     let billingContactName = null;
@@ -219,7 +219,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(eventsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...updated, primaryContactName: null, accountName: null });
   } catch (err) {
     req.log.error(err);
@@ -305,7 +305,7 @@ router.get("/:id/lifecycle", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const evt = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
-    if (!evt) return res.status(404).json({ error: "Not found" });
+    if (!evt) { res.status(404).json({ error: "Not found" }); return; }
 
     const model = evt.lifecycleModel ?? "Standard";
     const stages: LifecycleStage[] = LIFECYCLE_STAGES[model] ?? LIFECYCLE_STAGES.Standard;

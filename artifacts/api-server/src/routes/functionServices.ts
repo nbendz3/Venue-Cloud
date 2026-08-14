@@ -141,7 +141,7 @@ router.post("/:id/add-menu-template", async (req, res) => {
     const template = await db.query.menuTemplatesTable.findFirst({
       where: eq(menuTemplatesTable.id, templateId),
     });
-    if (!template) return res.status(404).json({ error: "Template not found" });
+    if (!template) { res.status(404).json({ error: "Template not found" }); return; }
 
     const [menu] = await db
       .insert(functionMenusTable)
@@ -229,7 +229,7 @@ router.put("/:id/menus/:menuId", async (req, res) => {
       })
       .where(eq(functionMenusTable.id, menuId))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Menu not found" });
+    if (!updated) { res.status(404).json({ error: "Menu not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
@@ -247,7 +247,7 @@ router.post("/:id/menus/:menuId/copy", async (req, res) => {
       .select()
       .from(functionMenusTable)
       .where(eq(functionMenusTable.id, menuId));
-    if (!srcMenu) return res.status(404).json({ error: "Menu not found" });
+    if (!srcMenu) { res.status(404).json({ error: "Menu not found" }); return; }
 
     const [newMenu] = await db
       .insert(functionMenusTable)

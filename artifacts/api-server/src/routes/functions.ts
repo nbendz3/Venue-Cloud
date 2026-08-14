@@ -11,7 +11,7 @@ router.get("/:id", async (req, res) => {
     const fn = await db.query.functionsTable.findFirst({
       where: eq(functionsTable.id, id),
     });
-    if (!fn) return res.status(404).json({ error: "Not found" });
+    if (!fn) { res.status(404).json({ error: "Not found" }); return; }
     let locationName = null;
     let locationCode = null;
     if (fn.locationId) {
@@ -45,7 +45,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(functionsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({
       ...updated,
       roomRental: updated.roomRental ? parseFloat(updated.roomRental) : null,

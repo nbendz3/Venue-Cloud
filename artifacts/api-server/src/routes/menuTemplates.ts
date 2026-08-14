@@ -72,7 +72,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [template] = await db.select().from(menuTemplatesTable).where(eq(menuTemplatesTable.id, id));
-    if (!template) return res.status(404).json({ error: "Not found" });
+    if (!template) { res.status(404).json({ error: "Not found" }); return; }
 
     const items = await db
       .select({
@@ -137,7 +137,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...body, updatedAt: new Date() })
       .where(eq(menuTemplatesTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
@@ -232,7 +232,7 @@ router.put("/:id/items/:itemId", async (req, res) => {
       .set(body)
       .where(eq(menuTemplateItemsTable.id, itemId))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const [catalogItem] = await db.select().from(catalogItemsTable).where(eq(catalogItemsTable.id, updated.catalogItemId));
     res.json({
       ...updated,
