@@ -143,13 +143,19 @@ export default function GuestRooms() {
   const [selectedBlock, setSelectedBlock] = useState<RoomBlock | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading, refetch } = useQuery<GridData>({
+  const { data, isLoading, isError, error, refetch } = useQuery<GridData>({
     queryKey: ["guest-rooms-grid", startDate, endDate, site],
-    queryFn: () => {
+    // The response was previously parsed as JSON without checking the status,
+    // so an error page came back as a parse failure and the view sat on its
+    // skeletons with nothing to tell the user.
+    queryFn: async () => {
       const p = new URLSearchParams({ start: startDate, end: endDate });
       if (site !== "_all_") p.set("site", site);
-      return fetch(`${BASE}/guest-rooms/grid?${p}`).then(r => r.json());
+      const r = await fetch(`${BASE}/guest-rooms/grid?${p}`);
+      if (!r.ok) throw new Error(`Guest rooms request failed (${r.status})`);
+      return r.json();
     },
+    retry: 1,
   });
 
   const dates = useMemo(() => dateRange(startDate, endDate), [startDate, endDate]);
@@ -401,7 +407,17 @@ export default function GuestRooms() {
             </div>
           </div>
 
-          {isLoading ? (
+          {isError ? (
+            <div className="p-10 text-center">
+              <p className="text-sm font-medium text-destructive">Could not load room blocks</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {(error as Error)?.message ?? "The request failed."}
+              </p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
             <div className="p-8 text-center text-muted-foreground text-sm">Loading bookings…</div>
           ) : blocks.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground">

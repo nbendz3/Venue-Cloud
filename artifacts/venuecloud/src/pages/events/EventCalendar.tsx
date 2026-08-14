@@ -11,6 +11,7 @@ import {
   startOfWeek, endOfWeek,
 } from "date-fns";
 import { CalendarLegend, useLifecycleColors, getStatusColor, StatusBadge } from "@/components/CalendarLegend";
+import { parseDateOnly } from "@/lib/date";
 
 type View = "month" | "week" | "day";
 type LifecycleColors = ReturnType<typeof useLifecycleColors>;
@@ -21,8 +22,8 @@ function normDay(d: Date) {
 
 function EventChip({ event, lifecycleColors }: { event: any; lifecycleColors: LifecycleColors }) {
   const colorStyle = getStatusColor(lifecycleColors, event.eventStatus ?? "");
-  const startDate = event.startDate ? new Date(event.startDate) : null;
-  const endDate = event.endDate ? new Date(event.endDate) : null;
+  const startDate = parseDateOnly(event.startDate);
+  const endDate = parseDateOnly(event.endDate);
 
   const dateLabel = startDate
     ? endDate && format(normDay(endDate), "yyyy-MM-dd") !== format(normDay(startDate), "yyyy-MM-dd")
@@ -124,8 +125,8 @@ export default function EventCalendar() {
     return (
       events?.filter((e) => {
         if (!e.startDate) return false;
-        const start = normDay(new Date(e.startDate));
-        const end = e.endDate ? normDay(new Date(e.endDate)) : start;
+        const start = normDay(parseDateOnly(e.startDate)!);
+        const end = e.endDate ? normDay(parseDateOnly(e.endDate)!) : start;
         return dayNorm >= start && dayNorm <= end;
       }) ?? []
     );
@@ -295,8 +296,8 @@ export default function EventCalendar() {
                     </p>
                     {dayEvents.map((event) => {
                       const colorStyle = getStatusColor(lifecycleColors, event.eventStatus ?? "");
-                      const startDate = event.startDate ? new Date(event.startDate) : null;
-                      const endDate = event.endDate ? new Date(event.endDate) : null;
+                      const startDate = parseDateOnly(event.startDate);
+                      const endDate = parseDateOnly(event.endDate);
                       const dLabel = startDate
                         ? endDate && format(normDay(endDate), "yyyy-MM-dd") !== format(normDay(startDate), "yyyy-MM-dd")
                           ? `${format(startDate, "MMM d")} – ${format(endDate, "MMM d, yyyy")}`

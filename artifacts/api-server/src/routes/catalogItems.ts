@@ -60,7 +60,7 @@ router.get("/:id", async (req, res) => {
       .select()
       .from(catalogItemsTable)
       .where(eq(catalogItemsTable.id, id));
-    if (!row) return res.status(404).json({ error: "Not found" });
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (err) {
     req.log.error(err);
@@ -106,7 +106,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...body, updatedAt: new Date() })
       .where(eq(catalogItemsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);

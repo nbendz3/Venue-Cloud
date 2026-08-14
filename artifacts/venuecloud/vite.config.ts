@@ -61,6 +61,12 @@ export default defineConfig({
   server: {
     port,
     strictPort: true,
+    // Optional local-development convenience: point the SPA at an API server
+    // running on another port, e.g. API_PROXY_TARGET=http://localhost:8080.
+    // Inert unless the variable is set, so hosted deployments are unaffected.
+    ...(process.env.API_PROXY_TARGET
+      ? { proxy: { "/api": { target: process.env.API_PROXY_TARGET, changeOrigin: true } } }
+      : {}),
     host: "0.0.0.0",
     allowedHosts: true,
     historyApiFallback: true,

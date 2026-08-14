@@ -52,7 +52,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const lead = await db.query.leadsTable.findFirst({ where: eq(leadsTable.id, id) });
-    if (!lead) return res.status(404).json({ error: "Not found" });
+    if (!lead) { res.status(404).json({ error: "Not found" }); return; }
     let primaryContactName = null;
     if (lead.primaryContactId) {
       const c = await db.query.contactsTable.findFirst({
@@ -75,7 +75,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(leadsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...updated, budget: updated.budget ? parseFloat(updated.budget) : null, primaryContactName: null });
   } catch (err) {
     req.log.error(err);

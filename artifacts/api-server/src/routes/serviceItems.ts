@@ -32,7 +32,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(serviceItemsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
 
     const rc = updated.revenueCenterId
       ? await db.query.revenueCentersTable.findFirst({ where: eq(revenueCentersTable.id, updated.revenueCenterId) })

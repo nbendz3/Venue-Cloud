@@ -6,6 +6,7 @@ import {
   useGetFunction,
   useListEventFunctions,
   useGetFunctionMenus,
+  useGetFunctionFinancials,
   useGetMenuTemplates,
   useCreateFunctionMenu,
   useDeleteFunctionMenu,
@@ -207,6 +208,7 @@ function ServiceItemRow({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           setEditing(false);
           toast({ title: "Item updated" });
         },
@@ -220,6 +222,7 @@ function ServiceItemRow({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: "Item deleted" });
         },
       }
@@ -631,6 +634,7 @@ function ServiceTypeBlock({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           setAddItemOpen(false);
           setItemForm({ itemName: "", description: "", aLaCartePrice: "", addOnPrice: "", cost: "", quantity: "1", appliedRates: "Gratuity and Sales Tax", category: "" });
           toast({ title: "Item added" });
@@ -645,6 +649,7 @@ function ServiceTypeBlock({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: "Service type removed" });
         },
       }
@@ -852,6 +857,7 @@ function ServiceTypeBlock({
                     });
                   }
                   queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
                   toast({ title: `${selectedMasterItems.length} item(s) added from library` });
                   setMasterListOpen(false);
                   setSelectedMasterItems([]);
@@ -939,6 +945,7 @@ function ServiceTypeBlock({
                     });
                   }
                   queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
                   toast({ title: `${selectedMenuItems.length} item(s) copied from menu` });
                   setFromMenuOpen(false);
                   setSelectedMenuItems([]);
@@ -1251,7 +1258,10 @@ function MenuBlock({
   const updateItem = useUpdateServiceItem();
   const deleteItem = useDeleteServiceItem();
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+  const invalidate = () => {
+    qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
+    return qc.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+  };
 
   const handleAddFromLibrary = async (
     toAdd: Array<{ catalogItem: any; qty: string; categoryName: string; sectionName: string; notes: string }>
@@ -2014,11 +2024,30 @@ function AddMenuDialog({
   };
 
   const handleAdd = async () => {
+    let added = 0;
     for (const templateId of selected) {
-      await addTemplate.mutateAsync({ id: functionId, data: { templateId } });
+      try {
+        await addTemplate.mutateAsync({ id: functionId, data: { templateId } });
+        added++;
+      } catch (err: any) {
+        // The server returns 409 when this template is already on the function.
+        // Adding a second copy is legitimate -- a second bar setup, say -- but
+        // it must be a deliberate choice, never a silent double-charge.
+        const detail = err?.response?.data ?? err?.data ?? {};
+        if (detail?.error === "duplicate_template") {
+          const proceed = window.confirm(
+            `${detail.message}\n\nIt will be labelled "(${(detail.existingCount ?? 1) + 1})" so the copies are distinguishable on the BEO.`
+          );
+          if (!proceed) continue;
+          await addTemplate.mutateAsync({ id: functionId, data: { templateId, confirmDuplicate: true } as any });
+          added++;
+        } else {
+          toast({ title: "Could not add menu", description: detail?.message ?? String(err), variant: "destructive" });
+        }
+      }
     }
     queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
-    toast({ title: `${selected.length} menu(s) added` });
+    if (added > 0) toast({ title: `${added} menu(s) added` });
     onClose();
   };
 
@@ -2036,6 +2065,7 @@ function AddMenuDialog({
       {
         onSuccess: (newMenu: any) => {
           queryClient.invalidateQueries({ queryKey: getGetFunctionMenusQueryKey(functionId) });
+          queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("/financials") });
           toast({ title: `"${customName.trim()}" created` });
           onClose();
           navigate(`/events/${eventId}/functions/${functionId}/menus/${newMenu.id}/edit`);
@@ -2207,11 +2237,13 @@ export default function FunctionServices() {
     query: { enabled: !!functionId } as any,
   });
 
-  const totalCharges = (menus ?? []).reduce((sum: number, menu: any) => {
-    return sum + (menu.serviceTypes ?? []).reduce((s: number, st: any) => {
-      return s + (st.items ?? []).reduce((si: number, i: any) => si + (parseFloat(i.itemTotal ?? "0") || 0), 0);
-    }, 0);
-  }, 0);
+  // Money comes from the server's pricing engine, never recomputed here.
+  const { data: financials } = useGetFunctionFinancials(functionId, {
+    query: { enabled: !!functionId } as any,
+  });
+  const totals = (financials as any)?.totals;
+  const rateWarnings: string[] = (financials as any)?.warnings ?? [];
+  const totalCharges = Number(totals?.charges ?? 0);
 
   if (fnLoading) {
     return <div className="p-8"><Skeleton className="h-12 w-1/3 mb-4" /><Skeleton className="h-64 w-full" /></div>;
@@ -2234,8 +2266,40 @@ export default function FunctionServices() {
             <span>Menus</span><span className="font-medium">{menus?.length ?? 0}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Total Charges</span><span className="font-semibold text-primary">{fmt(totalCharges)}</span>
+            <span>Subtotal</span><span className="font-medium">{fmt(totalCharges)}</span>
           </div>
+          {Number(totals?.serviceCharge ?? 0) > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Service Charge</span><span>{fmt(Number(totals.serviceCharge))}</span>
+            </div>
+          )}
+          {Number(totals?.gratuity ?? 0) > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Gratuity</span><span>{fmt(Number(totals.gratuity))}</span>
+            </div>
+          )}
+          {Number(totals?.salesTax ?? 0) > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Sales Tax</span><span>{fmt(Number(totals.salesTax))}</span>
+            </div>
+          )}
+          {Number(totals?.occupancyTax ?? 0) > 0 && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Occupancy Tax</span><span>{fmt(Number(totals.occupancyTax))}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm pt-2 border-t">
+            <span>Grand Total</span>
+            <span className="font-semibold text-primary">{fmt(Number(totals?.total ?? 0))}</span>
+          </div>
+          {rateWarnings.length > 0 && (
+            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-[11px] leading-snug text-amber-900">
+              <div className="font-semibold mb-1">Rate configuration</div>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {rateWarnings.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
         <div className="p-4 space-y-1">
           <div className="text-xs text-muted-foreground uppercase font-medium tracking-wide mb-2">Quick Links</div>
@@ -2266,7 +2330,7 @@ export default function FunctionServices() {
             <SelectContent>
               {(functions ?? []).map((f: any) => (
                 <SelectItem key={f.id} value={String(f.id)}>
-                  {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).location ?? "TBD"}`}
+                  {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).locationName ?? (f as any).location ?? "TBD"}`}
                 </SelectItem>
               ))}
             </SelectContent>

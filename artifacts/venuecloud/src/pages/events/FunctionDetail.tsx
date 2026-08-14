@@ -72,7 +72,7 @@ export default function FunctionDetail() {
     return <div className="p-8 text-center text-muted-foreground">Function not found.</div>;
   }
 
-  const fnDisplay = `${fn.functionType ?? "Function"}: ${event?.eventName ?? ""} - ${fn.functionDate ?? ""} - ${(fn as any).functionNumber ?? `#${fn.id}`} - ${(fn as any).location ?? ""}`;
+  const fnDisplay = `${fn.functionType ?? "Function"}: ${event?.eventName ?? ""} - ${fn.functionDate ?? ""} - ${(fn as any).functionNumber ?? `#${fn.id}`} - ${(fn as any).locationName ?? (fn as any).location ?? ""}`;
 
   return (
     <div className="flex h-full -m-6">
@@ -154,7 +154,7 @@ export default function FunctionDetail() {
                 <SelectContent>
                   {(functions ?? []).map((f: any) => (
                     <SelectItem key={f.id} value={String(f.id)}>
-                      {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).location ?? "TBD"}`}
+                      {`${(f as any).functionNumber ?? f.id} - ${f.functionType ?? "Function"} on ${f.functionDate ?? "TBD"} at ${f.startTime ?? "?"}-${f.endTime ?? "?"} in ${(f as any).locationName ?? (f as any).location ?? "TBD"}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -209,7 +209,7 @@ export default function FunctionDetail() {
                   <Field label="Function Type" value={(fn as any).functionType} />
                   <Field label="Function Date" value={(fn as any).functionDate} />
                   <Field label="Function Number" value={(fn as any).functionNumber} />
-                  <Field label="Location" value={(fn as any).location} />
+                  <Field label="Location" value={(fn as any).locationName ?? (fn as any).location} />
                   <Field label="Start Time" value={(fn as any).startTime} />
                   <Field label="End Time" value={(fn as any).endTime} />
                   <Field label="Setup Minutes" value={(fn as any).setupMinutes} />

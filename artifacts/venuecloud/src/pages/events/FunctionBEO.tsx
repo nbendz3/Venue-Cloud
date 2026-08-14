@@ -4,7 +4,9 @@ import {
   useGetEvent,
   useGetFunction,
   useGetFunctionMenus,
+  useGetFunctionFinancials,
 } from "@workspace/api-client-react";
+import { formatDateOnly, formatDateRange } from "@/lib/date";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
@@ -17,10 +19,7 @@ function fmt$(val: string | number | null | undefined): string {
 }
 
 function fmtDate(d: string | null | undefined): string {
-  if (!d) return "—";
-  return new Date(d + "T00:00:00").toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric",
-  });
+  return formatDateOnly(d, "full");
 }
 
 function fmtTime(t: string | null | undefined): string {
@@ -32,13 +31,18 @@ function fmtTime(t: string | null | undefined): string {
   return `${h12}:${m} ${ampm}`;
 }
 
+/**
+ * The server is the single source of truth for money. `itemTotal` already
+ * reflects the shared pricing engine, which prices ONLY selected items — so a
+ * BEO can never again bill an entire menu template as if it had been ordered.
+ */
 function calcItemTotal(item: any): number {
-  const stored = parseFloat(String(item.itemTotal ?? "0")) || 0;
-  if (stored > 0) return stored;
-  const qty = parseFloat(String(item.quantity ?? "1")) || 1;
-  const price = parseFloat(String(item.aLaCartePrice ?? "0")) || 0;
-  const hours = parseFloat(String(item.numHours ?? "1")) || 1;
-  return item.chargeHourly ? price * hours * qty : price * qty;
+  return parseFloat(String(item.itemTotal ?? "0")) || 0;
+}
+
+/** Items a client should see on the document: chosen, and not staff-internal. */
+function isOnBEO(item: any): boolean {
+  return item?.selected === true && item?.markItemInternal !== true;
 }
 
 export default function FunctionBEO() {
@@ -53,6 +57,11 @@ export default function FunctionBEO() {
     query: { enabled: !!functionId } as any,
   });
   const { data: menus, isLoading: menusLoading } = useGetFunctionMenus(functionId, {
+    query: { enabled: !!functionId } as any,
+  });
+  // Totals, tax and service charges all come from the server so this document
+  // can never disagree with the financials pages.
+  const { data: financials } = useGetFunctionFinancials(functionId, {
     query: { enabled: !!functionId } as any,
   });
 
@@ -76,18 +85,17 @@ export default function FunctionBEO() {
     );
   }
 
-  const menusList = (menus as any[]) ?? [];
+  const allMenus = (menus as any[]) ?? [];
+  // A BEO is the order, not the catalogue: menus with nothing selected are
+  // omitted entirely rather than printed as empty sections.
+  const menusList = allMenus.filter((menu: any) =>
+    (menu.serviceTypes ?? []).some((st: any) => (st.items ?? []).some(isOnBEO))
+  );
+  const omittedMenuCount = allMenus.length - menusList.length;
 
-  const grandTotal = menusList.reduce((sum: number, menu: any) => {
-    const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
-    if (menuTotal > 0) return sum + menuTotal;
-    const itemsTotal = (menu.serviceTypes ?? []).reduce((s2: number, st: any) => {
-      const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
-      if (stTotal > 0) return s2 + stTotal;
-      return s2 + (st.items ?? []).reduce((s3: number, item: any) => s3 + calcItemTotal(item), 0);
-    }, 0);
-    return sum + itemsTotal;
-  }, 0);
+  const totals = (financials as any)?.totals;
+  const warnings: string[] = (financials as any)?.warnings ?? [];
+  const grandTotal = Number(totals?.charges ?? 0);
 
   const beoNumber = `BEO-${(fn as any).functionNumber ?? functionId}-${new Date().toISOString().slice(0, 10)}`;
   const printDate = new Date().toLocaleDateString("en-US", {
@@ -193,7 +201,7 @@ export default function FunctionBEO() {
                     ["Function Date", fmtDate((fn as any).functionDate)],
                     ["Start Time", fmtTime((fn as any).startTime)],
                     ["End Time", fmtTime((fn as any).endTime)],
-                    ["Location / Room", (fn as any).location],
+                    ["Location / Room", (fn as any).locationName ?? (fn as any).location],
                     ["Setup Style", (fn as any).setupStyle],
                     ["Est. Attendance", (fn as any).estimatedAttendance],
                     ["Guaranteed", (fn as any).guaranteedAttendance],
@@ -216,14 +224,16 @@ export default function FunctionBEO() {
           {/* Menus */}
           {menusList.length === 0 ? (
             <div className="border rounded-md p-8 text-center text-sm text-gray-400">
-              No menus have been added to this function.
+              {allMenus.length === 0
+                ? "No menus have been added to this function."
+                : "No items have been selected yet. Tick the items the client has ordered on the Services page and they will appear here."}
             </div>
           ) : (
             menusList.map((menu: any, menuIdx: number) => {
               const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
               const serviceTypes = (menu.serviceTypes ?? []) as any[];
 
-              const computedMenuTotal = menuTotal > 0
+              const computedMenuTotal = menuTotal >= 0
                 ? menuTotal
                 : serviceTypes.reduce((s: number, st: any) => {
                     const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
@@ -272,11 +282,10 @@ export default function FunctionBEO() {
                   ) : (
                     serviceTypes.map((st: any) => {
                       const items = (st.items ?? []) as any[];
-                      const visibleItems = items.filter((item: any) => !item.markItemInternal);
-                      const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
-                      const computedStTotal = stTotal > 0
-                        ? stTotal
-                        : visibleItems.reduce((s: number, item: any) => s + calcItemTotal(item), 0);
+                      // A BEO lists what the client ORDERED, never the whole
+                      // catalogue the template made available.
+                      const visibleItems = items.filter(isOnBEO);
+                      const computedStTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
 
                       return (
                         <div key={st.id} className="border-t">
@@ -413,17 +422,10 @@ export default function FunctionBEO() {
             <div className="p-4">
               <table className="w-full text-sm">
                 <tbody>
-                  {menusList.map((menu: any) => {
-                    const menuTotal = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
-                    const computed = menuTotal > 0
-                      ? menuTotal
-                      : (menu.serviceTypes ?? []).reduce((s: number, st: any) => {
-                          const stTotal = parseFloat(String(st.serviceTypeTotalCharges ?? "0")) || 0;
-                          if (stTotal > 0) return s + stTotal;
-                          return s + ((st.items ?? []) as any[])
-                            .filter((i: any) => !i.markItemInternal)
-                            .reduce((s2: number, item: any) => s2 + calcItemTotal(item), 0);
-                        }, 0);
+                  {menusList
+                    .filter((menu: any) => (parseFloat(String(menu.menuTotalCharges ?? "0")) || 0) > 0)
+                    .map((menu: any) => {
+                    const computed = parseFloat(String(menu.menuTotalCharges ?? "0")) || 0;
                     return (
                       <tr key={menu.id} className="border-b">
                         <td className="py-2 text-gray-600">{menu.functionMenuName}</td>
@@ -437,18 +439,34 @@ export default function FunctionBEO() {
                     <td className="py-2.5 font-bold text-gray-900">Total F&amp;B Charges</td>
                     <td className="py-2.5 text-right font-bold text-gray-900">{fmt$(grandTotal)}</td>
                   </tr>
-                  <tr className="border-b text-gray-500">
-                    <td className="py-2">Gratuity (22%)</td>
-                    <td className="py-2 text-right">{fmt$(grandTotal * 0.22)}</td>
-                  </tr>
-                  <tr className="border-b text-gray-500">
-                    <td className="py-2">Sales Tax (8%)</td>
-                    <td className="py-2 text-right">{fmt$(grandTotal * 0.08)}</td>
-                  </tr>
+                  {Number(totals?.serviceCharge ?? 0) > 0 && (
+                    <tr className="border-b text-gray-500">
+                      <td className="py-2">Service Charge</td>
+                      <td className="py-2 text-right">{fmt$(totals.serviceCharge)}</td>
+                    </tr>
+                  )}
+                  {Number(totals?.gratuity ?? 0) > 0 && (
+                    <tr className="border-b text-gray-500">
+                      <td className="py-2">Gratuity</td>
+                      <td className="py-2 text-right">{fmt$(totals.gratuity)}</td>
+                    </tr>
+                  )}
+                  {Number(totals?.salesTax ?? 0) > 0 && (
+                    <tr className="border-b text-gray-500">
+                      <td className="py-2">Sales Tax</td>
+                      <td className="py-2 text-right">{fmt$(totals.salesTax)}</td>
+                    </tr>
+                  )}
+                  {Number(totals?.occupancyTax ?? 0) > 0 && (
+                    <tr className="border-b text-gray-500">
+                      <td className="py-2">Occupancy Tax</td>
+                      <td className="py-2 text-right">{fmt$(totals.occupancyTax)}</td>
+                    </tr>
+                  )}
                   <tr>
                     <td className="pt-3 pb-1 text-base font-bold text-gray-900">Estimated Grand Total</td>
                     <td className="pt-3 pb-1 text-right text-base font-bold text-gray-900">
-                      {fmt$(grandTotal * 1.30)}
+                      {fmt$(Number(totals?.total ?? 0))}
                     </td>
                   </tr>
                 </tbody>

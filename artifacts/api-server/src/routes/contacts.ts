@@ -55,7 +55,7 @@ router.get("/:id", async (req, res) => {
     const contact = await db.query.contactsTable.findFirst({
       where: eq(contactsTable.id, id),
     });
-    if (!contact) return res.status(404).json({ error: "Not found" });
+    if (!contact) { res.status(404).json({ error: "Not found" }); return; }
     let accountName = null;
     if (contact.accountId) {
       const acct = await db.query.accountsTable.findFirst({
@@ -78,7 +78,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(contactsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...updated, accountName: null });
   } catch (err) {
     req.log.error(err);

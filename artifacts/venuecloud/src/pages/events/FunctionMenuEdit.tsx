@@ -328,14 +328,17 @@ export default function FunctionMenuEdit() {
     return getEffectiveQty(item) * getEffectivePrice(item);
   }
 
-  const subtotal = allItems.reduce((s, i) => s + getEffectiveTotal(i), 0);
-  const tax = allItems.reduce((s, i) => {
-    const rc = ((revCenters as any[]) ?? []).find((r: any) => r.id === i.revenueCenterId);
-    const rate = parseFloat(rc?.salesTaxRate ?? "0") / 100;
-    return s + getEffectiveTotal(i) * rate;
-  }, 0);
-  const gratuity = subtotal * 0.22;
-  const grandTotal = subtotal + tax + gratuity;
+  // Live preview while editing: only SELECTED items are chargeable, matching
+  // the server pricing engine. Tax and service charges are intentionally NOT
+  // estimated here — the authoritative figures come from the server and are
+  // shown on the services sidebar, the financials pages and the BEO.
+  const subtotal = allItems.reduce(
+    (s, i) => (i.selected === true && i.markItemInternal !== true ? s + getEffectiveTotal(i) : s),
+    0
+  );
+  const selectedItemCount = allItems.filter(
+    (i: any) => i.selected === true && i.markItemInternal !== true
+  ).length;
 
   const fnAttendance = parseFloat((fn as any)?.estimatedAttendance ?? "1") || 1;
   const menuQty = headerForm.autoCalculateQuantity
@@ -907,21 +910,15 @@ export default function FunctionMenuEdit() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-medium tabular-nums">${subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Tax{tax > 0 && (revCenters as any[])?.length ? " (est.)" : ""}
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Selected items</span>
+                  <span className="tabular-nums">
+                    {selectedItemCount} of {allItems.length}
                   </span>
-                  <span className="font-medium tabular-nums">${tax.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Gratuity (22%)</span>
-                  <span className="font-medium tabular-nums">${gratuity.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-1.5">
-                  <span className="font-semibold">Estimated Total</span>
-                  <span className="font-bold text-base tabular-nums">
-                    ${grandTotal.toFixed(2)}
-                  </span>
+                <div className="text-xs text-muted-foreground border-t pt-1.5">
+                  Tax, service charge and gratuity are calculated from your
+                  configured rates. See the full breakdown for the grand total.
                 </div>
                 <div className="text-right pt-0.5">
                   <Link

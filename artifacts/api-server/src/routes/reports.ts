@@ -7,7 +7,63 @@ import {
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
+import { calculateEventPricing, round2 } from "../services/pricing.js";
+
 const router = Router();
+
+/** "2026-05-23" -> "2026-05". Date-only strings are never parsed as Dates. */
+function monthOf(dateOnly: string | null | undefined): string {
+  if (!dateOnly || dateOnly.length < 7) return "(no date)";
+  return dateOnly.slice(0, 7);
+}
+
+const isNumeric = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+
+/**
+ * Applies the report's groupings: rows are ordered by the grouping columns and
+ * a subtotal row is emitted after each group, summing every numeric column.
+ * Previously groupings were parsed and handed to the client unused, which is
+ * why a report described as "revenue grouped by month" returned a flat list.
+ */
+function applyGroupings(
+  rows: Record<string, unknown>[],
+  columns: string[],
+  groupings: { column: string; sortOrder?: string }[],
+  hideDetailRows: boolean
+): { rows: Record<string, unknown>[]; groupSummaries: Record<string, unknown>[] } {
+  if (groupings.length === 0) return { rows, groupSummaries: [] };
+
+  const keyOf = (r: Record<string, unknown>) => groupings.map((g) => String(r[g.column] ?? "")).join(" | ");
+
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
+  }
+
+  const desc = groupings[0]?.sortOrder === "Descending";
+  const keys = [...groups.keys()].sort((a, b) => (desc ? b.localeCompare(a) : a.localeCompare(b)));
+
+  const out: Record<string, unknown>[] = [];
+  const summaries: Record<string, unknown>[] = [];
+
+  for (const k of keys) {
+    const members = groups.get(k)!;
+    if (!hideDetailRows) out.push(...members);
+
+    const subtotal: Record<string, unknown> = { __group: k, __subtotal: true };
+    for (const col of columns) {
+      const nums = members.map((m) => m[col]).filter(isNumeric) as number[];
+      if (nums.length > 0) subtotal[col] = round2(nums.reduce((a, b) => a + b, 0));
+    }
+    subtotal[groupings[0].column] = `${k} — ${members.length} row(s)`;
+    out.push(subtotal);
+    summaries.push({ group: k, count: members.length, ...subtotal });
+  }
+
+  return { rows: out, groupSummaries: summaries };
+}
 
 // ── Report Types ─────────────────────────────────────────────────────────────
 
@@ -83,7 +139,7 @@ router.get("/types", async (req, res) => {
 
 router.get("/columns/:reportType", async (req, res) => {
   const cols = REPORT_COLUMNS[req.params.reportType];
-  if (!cols) return res.status(404).json({ error: "Unknown report type" });
+  if (!cols) { res.status(404).json({ error: "Unknown report type" }); return; }
   res.json(cols);
 });
 
@@ -151,7 +207,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [report] = await db.select().from(reportsTable).where(eq(reportsTable.id, id));
-    if (!report) return res.status(404).json({ error: "Not found" });
+    if (!report) { res.status(404).json({ error: "Not found" }); return; }
     res.json(report);
   } catch (err) {
     req.log.error(err);
@@ -167,7 +223,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(reportsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
@@ -192,21 +248,35 @@ router.post("/:id/run", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [report] = await db.select().from(reportsTable).where(eq(reportsTable.id, id));
-    if (!report) return res.status(404).json({ error: "Not found" });
+    if (!report) { res.status(404).json({ error: "Not found" }); return; }
 
     let columns: string[] = [];
     let rawRows: Record<string, unknown>[] = [];
 
     if (report.reportType === "Event") {
       const events = await db.select().from(eventsTable);
-      columns = ["ID", "Event Name", "Event Status", "Start Date", "End Date", "Est. Attendance", "Site", "Owner", "Salesperson"];
-      rawRows = events.map((e) => ({
-        ID: e.id, "Event Name": e.eventName, "Event Status": e.eventStatus,
-        "Start Date": e.startDate, "End Date": e.endDate,
-        "Est. Attendance": e.estimatedAttendance, Site: e.site,
-        Owner: e.owner, Salesperson: e.salesperson, "Event Type": e.eventType,
-        "Market Type": e.marketType, "Event Number": e.eventNumber,
-      }));
+      // Revenue comes from the shared pricing engine, so a report can never
+      // disagree with the financials pages or the BEO.
+      const pricings = await Promise.all(events.map((e) => calculateEventPricing(e.id)));
+      columns = [
+        "ID", "Event Name", "Month", "Event Status", "Start Date", "End Date",
+        "Est. Attendance", "Charges", "Service Charge", "Gratuity", "Tax", "Total",
+        "Site", "Owner", "Salesperson",
+      ];
+      rawRows = events.map((e, i) => {
+        const t = pricings[i].totals;
+        return {
+          ID: e.id, "Event Name": e.eventName, Month: monthOf(e.startDate),
+          "Event Status": e.eventStatus,
+          "Start Date": e.startDate, "End Date": e.endDate,
+          "Est. Attendance": e.estimatedAttendance,
+          Charges: t.charges, "Service Charge": t.serviceCharge, Gratuity: t.gratuity,
+          Tax: round2(t.salesTax + t.occupancyTax), Total: t.total,
+          "Balance Due": pricings[i].balanceDue,
+          Site: e.site, Owner: e.owner, Salesperson: e.salesperson,
+          "Event Type": e.eventType, "Market Type": e.marketType, "Event Number": e.eventNumber,
+        };
+      });
     } else if (report.reportType === "Function") {
       const fns = await db.select().from(functionsTable);
       columns = ["ID", "Event ID", "Function Type", "Function Date", "Start Time", "End Time", "Est. Attendance", "Function Number"];
@@ -232,25 +302,31 @@ router.post("/:id/run", async (req, res) => {
       }));
     } else if (report.reportType === "Account") {
       const accounts = await db.select().from(accountsTable);
-      columns = ["ID", "Account Name", "Account Type", "City", "State", "Country"];
+      columns = ["ID", "Account Name", "Account Number", "City", "State", "Country", "Phone", "Owner"];
       rawRows = accounts.map((a) => ({
-        ID: a.id, "Account Name": a.accountName, "Account Type": a.accountType,
+        ID: a.id, "Account Name": a.name, "Account Number": a.accountNumber,
         City: a.city, State: a.state, Country: a.country,
+        Phone: a.phone, Owner: a.owner,
       }));
     } else if (report.reportType === "Task") {
       const tasks = await db.select().from(tasksTable);
-      columns = ["ID", "Task Name", "Priority", "Due Date", "Task Status", "Assigned To"];
+      columns = ["ID", "Task Name", "Priority", "Due Date", "Status", "Salesperson", "Category"];
       rawRows = tasks.map((t) => ({
-        ID: t.id, "Task Name": t.taskName, Priority: t.priority,
-        "Due Date": t.dueDate, "Task Status": t.taskStatus, "Assigned To": t.assignedTo,
+        ID: t.id, "Task Name": t.name, Priority: t.priority,
+        "Due Date": t.dueDate, Status: t.status, Salesperson: t.salesperson,
+        Category: t.category,
       }));
     } else if (report.reportType === "GuestRoomsBlock") {
       const blocks = await db.select().from(guestRoomBlocksTable);
-      columns = ["ID", "Event ID", "Room Type", "Block Date", "Rooms Blocked", "Rooms Picked Up", "Avg Rate"];
+      columns = [
+        "ID", "Event ID", "Block Name", "Start Date", "Departure Date", "Cutoff Date",
+        "Contracted", "Blocked", "Pickup", "Avg Rate", "Total", "Status",
+      ];
       rawRows = blocks.map((b) => ({
-        ID: b.id, "Event ID": b.eventId, "Room Type": b.roomType,
-        "Block Date": b.blockDate, "Rooms Blocked": b.roomsBlocked,
-        "Rooms Picked Up": b.roomsPickedUp, "Avg Rate": b.avgRate,
+        ID: b.id, "Event ID": b.eventId, "Block Name": b.blockName,
+        "Start Date": b.startDate, "Departure Date": b.departureDate,
+        "Cutoff Date": b.cutoffDate, Contracted: b.contracted, Blocked: b.blocked,
+        Pickup: b.pickup, "Avg Rate": b.avgRate, Total: b.total, Status: b.status,
       }));
     } else {
       columns = ["Message"];
@@ -280,19 +356,32 @@ router.post("/:id/run", async (req, res) => {
       }
     }
 
+    const groupings = report.groupings ? JSON.parse(report.groupings) : [];
+    const calculations = report.calculations ? JSON.parse(report.calculations) : [];
+
+    // Grouping happens before pagination so subtotals are not split across pages.
+    const grouped = applyGroupings(rawRows, columns, groupings, report.hideDetailRows === true);
+    rawRows = grouped.rows;
+
+    // Report-level totals for every numeric column.
+    const grandTotals: Record<string, unknown> = {};
+    for (const col of columns) {
+      const nums = rawRows.filter((r) => r.__subtotal !== true).map((r) => r[col]).filter(isNumeric) as number[];
+      if (nums.length > 0) grandTotals[col] = round2(nums.reduce((a, b) => a + b, 0));
+    }
+
     // Pagination
     const page = parseInt(String(req.body?.page ?? 1));
     const pageSize = 100;
     const start = (page - 1) * pageSize;
     const rows = rawRows.slice(start, start + pageSize);
 
-    const groupings = report.groupings ? JSON.parse(report.groupings) : [];
-    const calculations = report.calculations ? JSON.parse(report.calculations) : [];
-
     res.json({
       reportId: id, reportName: report.reportName, reportType: report.reportType,
       columns, rows, rowCount: rawRows.length,
       groupings, calculations,
+      groupSummaries: grouped.groupSummaries,
+      grandTotals,
       page, pageSize, totalPages: Math.ceil(rawRows.length / pageSize),
     });
   } catch (err) {

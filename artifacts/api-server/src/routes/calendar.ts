@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { eventsTable, functionsTable, locationsTable, accountsTable } from "@workspace/db";
+import { eventsTable, functionsTable, locationsTable, accountsTable, contactsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router = Router();
@@ -43,12 +43,19 @@ router.get("/events", async (req, res) => {
             };
           })
         );
+        // Events link to an account through their primary contact; there is
+        // no accountId column on events.
         let accountName: string | null = null;
-        if (evt.accountId) {
-          const account = await db.query.accountsTable.findFirst({
-            where: eq(accountsTable.id, evt.accountId),
+        if (evt.primaryContactId) {
+          const contact = await db.query.contactsTable.findFirst({
+            where: eq(contactsTable.id, evt.primaryContactId),
           });
-          accountName = account?.accountName ?? null;
+          if (contact?.accountId) {
+            const account = await db.query.accountsTable.findFirst({
+              where: eq(accountsTable.id, contact.accountId),
+            });
+            accountName = account?.name ?? null;
+          }
         }
         return {
           id: evt.id,

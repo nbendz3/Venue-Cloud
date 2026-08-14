@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateOnly } from "@/lib/date";
 
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -61,12 +62,15 @@ function DetailField({ label, children }: { label: string; children: React.React
   );
 }
 
+// Sections that are actually built. Sertifi eSignature, Event Booking Details
+// and the two Attachments panels were placeholders reading "content will render
+// here"; they are hidden until they do something, because an empty section
+// reads as abandoned where a missing one just reads as not-yet-built.
 const SECTIONS = [
-  "Event Details", "Billing Details", "Functions", "Guest Room Blocks", 
-  "Personnel", "Event Timeline", "Contacts", "Event Lifecycle", 
-  "Notes", "Tasks", "Appointments", "Communication History", 
-  "Sertifi eSignature Details", "Event Booking Details", "Event Attachments", 
-  "Function Attachments", "Last Updated"
+  "Event Details", "Billing Details", "Functions", "Guest Room Blocks",
+  "Personnel", "Event Timeline", "Contacts", "Event Lifecycle",
+  "Notes", "Tasks", "Appointments", "Communication History",
+  "Last Updated"
 ];
 
 type LifecycleStageRow = {
@@ -424,13 +428,13 @@ export default function EventDetail() {
                       <DetailField label="Start Date">
                         {event.startDate
                           ? <Link href={`/events/calendar`} className="text-primary hover:underline font-medium">
-                              {new Date(event.startDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                              {formatDateOnly(event.startDate as string, "long")}
                             </Link>
                           : <span className="font-medium">TBD</span>}
                       </DetailField>
                       <DetailField label="End Date">
                         <span className="font-medium">
-                          {event.endDate ? new Date(event.endDate as string).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : '—'}
+                          {formatDateOnly(event.endDate as string, "long")}
                         </span>
                       </DetailField>
                       <DetailField label="Event Lifecycle Model">
@@ -1697,16 +1701,29 @@ export default function EventDetail() {
                 );
               }
 
-              return (
-                <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6 opacity-60">
-                  <h2 className="text-lg font-semibold mb-4 pb-2 border-b">{section}</h2>
-                  <Card className="bg-muted/30 border-dashed">
-                    <CardContent className="p-8 text-center text-muted-foreground text-sm">
-                      {section} content will render here
-                    </CardContent>
-                  </Card>
-                </div>
-              );
+              if (section === "Last Updated") {
+                const stamp = (v: unknown) =>
+                  v ? new Date(String(v)).toLocaleString("en-US", {
+                        month: "long", day: "numeric", year: "numeric",
+                        hour: "numeric", minute: "2-digit",
+                      })
+                    : "—";
+                return (
+                  <div key={section} id={`section-${sectionIdx}`} className="scroll-mt-6">
+                    <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Last Updated</h2>
+                    <Card>
+                      <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                        <DetailField label="Created">{stamp((event as any).createdAt)}</DetailField>
+                        <DetailField label="Created By">{(event as any).createdBy ?? "—"}</DetailField>
+                        <DetailField label="Last Updated">{stamp((event as any).updatedAt)}</DetailField>
+                        <DetailField label="Last Updated By">{(event as any).updatedBy ?? "—"}</DetailField>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              }
+
+              return null;
             })}
 
           </div>

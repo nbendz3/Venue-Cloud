@@ -18,7 +18,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(serviceTypesTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     const items = await db
       .select()
       .from(serviceItemsTable)
@@ -96,6 +96,7 @@ router.post("/:id/items", async (req, res) => {
       itemName, description, notes, quantity, autoQuantity,
       aLaCartePrice, addOnPrice, cost, revenueCenterId, appliedRates, category,
       chargeHourly, numHours, numberRequired, perNumberOfGuests, sectionName,
+      selected,
     } = req.body;
 
     // Calculate item total
@@ -125,6 +126,9 @@ router.post("/:id/items", async (req, res) => {
         numberRequired,
         perNumberOfGuests,
         itemTotal,
+        // An item added explicitly from the builder is an order, not an option:
+        // default to selected unless the caller says otherwise.
+        selected: selected !== undefined ? !!selected : true,
       })
       .returning();
 

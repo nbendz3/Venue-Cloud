@@ -48,16 +48,40 @@ export default function EventEdit() {
 
   const set = (k: string, v: string | boolean) => setForm(p => ({ ...p, [k]: v }));
 
+  // Dates were optional while Market Type was required, so an event could be
+  // saved with no dates at all -- which breaks the calendar, every report and
+  // the guest rooms grid. The API rejects it too; this is just the friendly half.
+  const startDate = String(form.startDate || "");
+  const endDate = String(form.endDate || "");
+  const dateError =
+    !startDate || !endDate
+      ? null
+      : endDate < startDate
+        ? "End date cannot be before the start date."
+        : null;
+  const canSave = !!form.eventName && !!startDate && !!endDate && !dateError;
+
+  async function postJson(url: string, method: string, data: unknown) {
+    const r = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body?.error ?? `Request failed (${r.status})`);
+    return body;
+  }
+
   const mutation = useMutation({
     mutationFn: (data: typeof form) => isNew
-      ? fetch(`${BASE}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json())
-      : fetch(`${BASE}/events/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).then(r => r.json()),
+      ? postJson(`${BASE}/events`, "POST", data)
+      : postJson(`${BASE}/events/${id}`, "PUT", data),
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ["events"] });
       toast.success(isNew ? "Event created" : "Event saved");
       navigate(`/events/${saved.id}`);
     },
-    onError: () => toast.error("Failed to save event"),
+    onError: (e: Error) => toast.error(e.message || "Failed to save event"),
   });
 
   const F = ({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) => (
@@ -98,8 +122,13 @@ export default function EventEdit() {
                 <SelectContent>{STATUSES.map(s=><SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </F>
-            <F label="Start Date"><Input type="date" value={String(form.startDate||"")} onChange={e=>set("startDate",e.target.value)} /></F>
-            <F label="End Date"><Input type="date" value={String(form.endDate||"")} onChange={e=>set("endDate",e.target.value)} /></F>
+            <F label="Start Date" required>
+              <Input type="date" value={String(form.startDate||"")} onChange={e=>set("startDate",e.target.value)} />
+            </F>
+            <F label="End Date" required>
+              <Input type="date" value={String(form.endDate||"")} onChange={e=>set("endDate",e.target.value)} />
+              {dateError && <p className="text-xs text-red-500 mt-1">{dateError}</p>}
+            </F>
             <F label="Event Type" required>
               <Select value={String(form.eventType||"")} onValueChange={v=>set("eventType",v)}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
@@ -173,7 +202,7 @@ export default function EventEdit() {
       </div>
 
       <div className="flex gap-3 mt-6">
-        <Button onClick={()=>mutation.mutate(form)} disabled={!form.eventName||mutation.isPending}>
+        <Button onClick={()=>mutation.mutate(form)} disabled={!canSave||mutation.isPending}>
           <Save className="h-4 w-4 mr-2" />{mutation.isPending?"Saving…":"Save"}
         </Button>
         <Button variant="outline" onClick={()=>navigate(isNew?"/events":`/events/${id}`)}>Cancel</Button>

@@ -1,0 +1,1 @@
+- [Pricing engine patch](pricing-engine.md) — all money flows through artifacts/api-server/src/services/pricing.ts; known gaps and pre-existing typecheck noise.

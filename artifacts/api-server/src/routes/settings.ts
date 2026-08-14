@@ -54,7 +54,7 @@ const router = Router();
 // GET /settings/:table — list
 router.get("/:table", async (req, res) => {
   const table = TABLE_REGISTRY[req.params.table];
-  if (!table) return res.status(404).json({ error: "Unknown settings table" });
+  if (!table) { res.status(404).json({ error: "Unknown settings table" }); return; }
   try {
     const rows = await db.select().from(table).orderBy((table as any).id);
     res.json(rows);
@@ -67,7 +67,7 @@ router.get("/:table", async (req, res) => {
 // POST /settings/:table — create
 router.post("/:table", async (req, res) => {
   const table = TABLE_REGISTRY[req.params.table];
-  if (!table) return res.status(404).json({ error: "Unknown settings table" });
+  if (!table) { res.status(404).json({ error: "Unknown settings table" }); return; }
   try {
     const [created] = await db.insert(table).values(req.body).returning();
     res.status(201).json(created);
@@ -80,11 +80,11 @@ router.post("/:table", async (req, res) => {
 // PUT /settings/:table/:id — update
 router.put("/:table/:id", async (req, res) => {
   const table = TABLE_REGISTRY[req.params.table];
-  if (!table) return res.status(404).json({ error: "Unknown settings table" });
+  if (!table) { res.status(404).json({ error: "Unknown settings table" }); return; }
   const id = parseInt(req.params.id);
   try {
     const [updated] = await db.update(table).set(req.body).where(eq((table as any).id, id)).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
@@ -95,7 +95,7 @@ router.put("/:table/:id", async (req, res) => {
 // DELETE /settings/:table/:id — delete
 router.delete("/:table/:id", async (req, res) => {
   const table = TABLE_REGISTRY[req.params.table];
-  if (!table) return res.status(404).json({ error: "Unknown settings table" });
+  if (!table) { res.status(404).json({ error: "Unknown settings table" }); return; }
   const id = parseInt(req.params.id);
   try {
     await db.delete(table).where(eq((table as any).id, id));

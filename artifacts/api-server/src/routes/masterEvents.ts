@@ -58,7 +58,7 @@ router.get("/:id/functions", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const events = await db.select({ id: eventsTable.id, eventName: eventsTable.eventName }).from(eventsTable).where(eq(eventsTable.masterEventId, id));
-    if (!events.length) return res.json([]);
+    if (!events.length) { res.json([]); return; }
 
     const eventIds = events.map((e) => e.id);
     const eventMap: Record<number, string> = {};
@@ -108,7 +108,7 @@ router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [me] = await db.select().from(masterEventsTable).where(eq(masterEventsTable.id, id));
-    if (!me) return res.status(404).json({ error: "Not found" });
+    if (!me) { res.status(404).json({ error: "Not found" }); return; }
 
     const events = await db.select().from(eventsTable).where(eq(eventsTable.masterEventId, id));
     let primaryContact = null;
@@ -133,7 +133,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...req.body, updatedAt: new Date() })
       .where(eq(masterEventsTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);

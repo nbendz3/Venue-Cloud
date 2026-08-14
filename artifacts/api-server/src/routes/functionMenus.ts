@@ -17,7 +17,7 @@ router.get("/:id", async (req, res) => {
     const menu = await db.query.functionMenusTable.findFirst({
       where: eq(functionMenusTable.id, id),
     });
-    if (!menu) return res.status(404).json({ error: "Not found" });
+    if (!menu) { res.status(404).json({ error: "Not found" }); return; }
 
     const serviceTypes = await db
       .select()
@@ -83,7 +83,7 @@ router.put("/:id", async (req, res) => {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(functionMenusTable.id, id))
       .returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ...updated, serviceTypes: [] });
   } catch (err) {
     req.log.error(err);

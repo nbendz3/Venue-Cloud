@@ -7,7 +7,7 @@ const router = Router({ mergeParams: true });
 
 router.get("/", async (req, res) => {
   try {
-    const eventId = parseInt(req.params.id);
+    const eventId = parseInt((req.params as { id: string }).id);
     const rows = await db.query.eventPersonnelTable.findMany({
       where: eq(eventPersonnelTable.eventId, eventId),
       orderBy: (t, { asc }) => [asc(t.createdAt)],
@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const eventId = parseInt(req.params.id);
+    const eventId = parseInt((req.params as { id: string }).id);
     const [created] = await db
       .insert(eventPersonnelTable)
       .values({ ...req.body, eventId })

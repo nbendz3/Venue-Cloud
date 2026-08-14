@@ -58,7 +58,17 @@ import MenuTemplates from "@/pages/settings/MenuTemplates";
 import { QuickEntryModal } from "@/components/QuickEntryModal";
 import { RecentRecordsProvider } from "@/components/RecentRecords";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Bounded retries: the default of three with exponential backoff makes a
+      // failing endpoint look like an indefinite spinner rather than an error.
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function Router() {
   const [quickEntryOpen, setQuickEntryOpen] = useState(false);

@@ -32,7 +32,7 @@ router.put("/revenue-centers/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const [updated] = await db.update(revenueCentersTable).set(req.body).where(eq(revenueCentersTable.id, id)).returning();
-    if (!updated) return res.status(404).json({ error: "Not found" });
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
