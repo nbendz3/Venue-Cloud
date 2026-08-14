@@ -50,3 +50,4 @@ Thumbs.db
 
 # Patch files dropped into the workspace are not source.
 attached_assets/*.patch
+attached_assets/Pasted-From-*.txt
