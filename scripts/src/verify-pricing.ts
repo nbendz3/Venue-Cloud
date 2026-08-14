@@ -26,6 +26,13 @@ function check(label: string, actual: unknown, expected: unknown) {
 }
 
 async function main() {
+  // Make the run repeatable: clear any rate configuration left behind by a
+  // previous run, so phase 1 always starts from "nothing configured".
+  await db.delete(serviceFeesTable);
+  await db
+    .update(revenueCentersTable)
+    .set({ isDefault: false, salesTaxRate: null, occupancyTaxRate: null });
+
   /* ------------------------------------------------------- pure functions */
   check("unselected item is not billable", isBillable({ selected: false, quantity: "1" }), false);
   check("selected item with qty is billable", isBillable({ selected: true, quantity: "1" }), true);
